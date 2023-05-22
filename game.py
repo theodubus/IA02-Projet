@@ -1,5 +1,3 @@
-
-
 class Plateau:
     """
     Classe qui represente le plateau de jeu

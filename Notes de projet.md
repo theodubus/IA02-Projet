@@ -49,7 +49,7 @@ Pour chaque case on aura donc soit un garde, soit un invité soit aucun des deux
 
 Pour N gardes et M invités, on fera un at_least(X) et at_most(X) pour les N gardes et M invités.
 
-On fera également une clause permettant de vérifier qu'il n'y a pas d'invité et de garde sur la même case (avec un at_mot_one ntre I et G).
+On fera également une clause permettant de vérifier qu'il n'y a pas d'invité et de garde sur la même case (avec un at_mot_one entre I et G).
 
 Si côté python on remarque qu'une case `[i, j]` est vide, a un mur ou un objet, on ne peut pas le mettre directement en sat mais on peut mettre une clause `-I[i, j]` et une clause `-G[i, j]`, ce qui apportera de l'information dans les déductions (par exemple si on entent 6+ personnes autour de soi, on fait les combinaisons mais si le fichier cnf continent que telle ou telle case ne contient personne, il pourra faire des déductions supplémentaires.)
 

@@ -67,3 +67,15 @@ deux options :
 
 todo :
 clauses SAT
+
+
+## Clauses SAT à modéliser
+#### Clauses initiales
++ K invités sur la grille
++ L gardes sur la grille
++ Pas de garde et d'invité au même endroit (ex -G11 ou -I11)
+
+#### Clauses à ajouter au fil de la partie
++ K personnes (invités ou gardes) autour du joueur (entendre)
++ 6+ personnes (invités ou gardes) autour du joueur (entendre brouhaha)
++ fixer des cases (ex G11, I12, -I17)

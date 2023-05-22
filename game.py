@@ -1,3 +1,7 @@
+from itertools import combinations
+
+
+
 class Plateau:
     """
     Classe qui represente le plateau de jeu
@@ -12,14 +16,17 @@ class Plateau:
         - verif_init : verifie si les coordonnees d'initialisation sont valides
         - _infos_plateau : renvoie la taille du plateau
         - __str__ : sert a afficher le plateau
-        - cell_to_cnf : converti les coordonnees d'une case en variable cnf
-        - cnf_to_cell : converti une variable cnf en coordonnees de case
+        - cell_to_var : converti les coordonnees et le typed'une case en variable cnf
+        - var_to_cell : converti une variable cnf en coordonnees de case et le type
         - voisins : renvoie les cases voisines de la case (haut, bas, gauche, droite)
         - voisins_2_cases : renvoie les cases eloignees de deux cases dans la meme direction
         - cases_entendre : renvoie les cases autour de la case, plus la case actuelle elle-meme
         - cases_voir : renvoie les trois cases dans la direction donnee
         
         Les méthodes qui calculent les voisins veillent bien entendu à ne pas renvoyer des cases qui ne sont pas sur le plateau.
+
+        Pour les variables CNF, nous n'utilisons que deux variables par case, pour déduire
+        si une case contient un garde, un invité ou ni l'un ni l'autre.
     """
 
     def __init__(self, m, n):
@@ -43,29 +50,49 @@ class Plateau:
         m, n = self._infos_plateau()
         return 0 <= i < m and 0 <= j < n
     
-    def cell_to_cnf(self, i, j):
+    def cell_to_var(self, i, j, type):
         """
-        converti les coordonnees d'une case en variable cnf
+        converti les coordonnees d'une case et le type en variable cnf
 
-        Exemple avec 2 colonnes et 2 lignes : (0, 0) -> 1, (0, 1) -> 2, (1, 0) -> 3, (1, 1) -> 4.
+        Exemple avec 2 colonnes et 2 lignes :
+        (0, 0, "invite") -> 1, (0, 1, "invite") -> 2, (1, 0, "invite") -> 3, (1, 1, "invite") -> 4
+        (0, 0, "garde") -> 5, (0, 1, "garde") -> 6, (1, 0, "garde") -> 7, (1, 1, "garde") -> 8.
         """
+
+        if type not in {"invite", "garde"}:
+            raise ValueError("Le type n'est pas valide")
+
         if not self.case_existe(i, j):
             raise ValueError("La case n'existe pas")
 
-        _, n = self._infos_plateau()
-        return i * n + j + 1
-    
-    def cnf_to_cell(self, var):
-        """
-        converti une variable cnf en coordonnees de case
+        m, n = self._infos_plateau()
+        var = i * n + j + 1
 
-        Exemple avec 2 colonnes et 2 lignes : 1 -> (0, 0), 2 -> (0, 1), 3 -> (1, 0), 4 -> (1, 1).
+        if type == "garde":
+            var += m * n
+
+        return var
+    
+    def var_to_cell(self, var):
+        """
+        converti une variable cnf en coordonnees de case et le type
+
+        Exemple avec 2 colonnes et 2 lignes :
+        1 -> (0, 0, "invite"), 2 -> (0, 1, "invite"), 3 -> (1, 0, "invite"), 4 -> (1, 1, "invite")
+        5 -> (0, 0, "garde"), 6 -> (0, 1, "garde"), 7 -> (1, 0, "garde"), 8 -> (1, 1, "garde").
         """
         m, n = self._infos_plateau()
-        if var < 1 or var > m * n:
-            raise ValueError("La variable cnf n'est pas valide")
+        if var <= m * n:
+            type = "invite"
+            var -= 1
+        else:
+            type = "garde"
+            var -= (m * n + 1)
 
-        return (var - 1) // n, (var - 1) % n
+        i = var // n
+        j = var % n
+
+        return i, j, type
 
     def set_case(self, i, j, contenu):
         """
@@ -285,14 +312,16 @@ class Case:
 
 
 
-p = Plateau(6, 8)
-p.set_case(2, 4, ("mur", None))
-p.set_case(2, 3, ("corde", None))
-p.set_case(2, 2, ("costume", None))
+p = Plateau(2, 2)
+# p.set_case(2, 4, ("mur", None))
+# p.set_case(2, 3, ("corde", None))
+# p.set_case(2, 2, ("costume", None))
 
-p.set_case(1, 1, ("invite", "gauche"))
-p.set_case(2, 5, ("garde", "droite"))
+# p.set_case(1, 1, ("invite", "gauche"))
+# p.set_case(2, 5, ("garde", "droite"))
 
-print(p)
+
+
+# print(p)
 
 

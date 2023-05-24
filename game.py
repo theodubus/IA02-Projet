@@ -39,7 +39,7 @@ class Plateau:
             self._m = m
             self._n = n
             self.clauses = set()
-
+    
         self._plateau = [[Case() for _ in range(n)] for _ in range(m)]
 
     def case_existe(self, i, j):

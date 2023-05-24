@@ -1,6 +1,4 @@
-from itertools import combinations
-
-
+from clauses_combin import *
 
 class Plateau:
     """
@@ -20,7 +18,7 @@ class Plateau:
         - var_to_cell : converti une variable cnf en coordonnees de case et le type
         - voisins : renvoie les cases voisines de la case (haut, bas, gauche, droite)
         - voisins_2_cases : renvoie les cases eloignees de deux cases dans la meme direction
-        - cases_entendre : renvoie les cases autour de la case, plus la case actuelle elle-meme
+        - cases_entendre : renvoie les cases autour de la case dans un rayon de 2, plus la case actuelle elle-meme
         - cases_voir : renvoie les trois cases dans la direction donnee
         
         Les méthodes qui calculent les voisins veillent bien entendu à ne pas renvoyer des cases qui ne sont pas sur le plateau.
@@ -40,6 +38,7 @@ class Plateau:
         if self.verif_init(m, n):
             self._m = m
             self._n = n
+            self.clauses = set()
 
         self._plateau = [[Case() for _ in range(n)] for _ in range(m)]
 
@@ -93,6 +92,21 @@ class Plateau:
         j = var % n
 
         return i, j, type
+
+    def clauses_invites_gardes(self, n_gardes, n_invites):
+        """
+        Renvoie les clauses permettant de modeliser le nombre de gardes et d'invites
+        """
+        m, n = self._infos_plateau()
+
+        variables_invites = [self.cell_to_var(i, j, "invite") for i in range(m) for j in range(n)]
+        variables_gardes = [self.cell_to_var(i, j, "garde") for i in range(m) for j in range(n)]
+
+        clauses = []
+        clauses.append(at_most_k(variables_invites, n_invites))
+        clauses.append(at_most_k(variables_gardes, n_gardes))
+
+        
 
     def set_case(self, i, j, contenu):
         """
@@ -169,18 +183,14 @@ class Plateau:
     
     def cases_entendre(self, i, j):
         """
-        Renvoie les cases autour de la case, plus la case actuelle elle-meme
+        Renvoie les cases autour de la case dans un rayon de 2, plus la case actuelle elle-meme
         Cette methode est utile lorsque le joueur veut "entendre"
         """
         if not self.case_existe(i, j):
             raise ValueError(f"La case ({i}, {j}) n'existe pas")
 
-        # Gauche, droite, haut, bas
-        voisins = self.voisins()
-
-        # Case actuelle et haut-gauche, haut-droite, bas-gauche, bas-droite
-        candidates = [(i, j), (i-1, j-1), (i-1, j+1), (i+1, j-1), (i+1, j+1)]
-        voisins += [c for c in candidates if self.case_existe(c[0], c[1])]
+        candidates = [(x, y) for x in range(i-2, i+3) for y in range(j-2, j+3)]
+        voisins = [c for c in candidates if self.case_existe(c[0], c[1])]
                 
         return voisins
     

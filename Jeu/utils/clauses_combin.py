@@ -44,3 +44,16 @@ def exactly_n(n, liste):
     if n==len(liste):
         return at_least_n(n, liste)
     return at_most_n(n, liste) + at_least_n(n, liste)
+
+def unique(liste1, liste2):
+    """
+    Renvoie les clauses permettant de modeliser qu'on ne peut pas avoir
+    liste1[i] et liste2[i] en meme temps
+    """
+    if len(liste1) != len(liste2):
+        raise ValueError("Les deux listes doivent avoir la meme taille")
+    
+    clauses = []
+    for i in range(len(liste1)):
+        clauses.append([-liste1[i], -liste2[i]])
+    return clauses

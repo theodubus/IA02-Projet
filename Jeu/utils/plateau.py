@@ -10,7 +10,9 @@ class Plateau:
 
     Les methodes utiles sont :
         - case_existe : verifie si la case (i, j) existe
+        - distance_manhattan : renvoie la distance de Manhattan entre deux cases
         - set_case : modifie le contenu de la case (i, j)
+        - get_case : renvoie le contenu de la case (i, j)
         - verif_init : verifie si les coordonnees d'initialisation sont valides
         - infos_plateau : renvoie la taille du plateau
         - __str__ : sert a afficher le plateau
@@ -48,6 +50,15 @@ class Plateau:
         """
         m, n = self.infos_plateau()
         return 0 <= i < m and 0 <= j < n
+    
+    def distance_manhattan(self, i1, j1, i2, j2):
+        """
+        Renvoie la distance de Manhattan entre deux cases
+        """
+        if not self.case_existe(i1, j1) or not self.case_existe(i2, j2):
+            raise ValueError("La case n'existe pas")
+
+        return abs(i1 - i2) + abs(j1 - j2)
     
     def cell_to_var(self, i, j, type):
         """
@@ -101,6 +112,13 @@ class Plateau:
             raise ValueError("La case n'existe pas")
         self._plateau[i][j].contenu = contenu
 
+    def get_case(self, i, j):
+        """
+        Renvoie le contenu de la case (i, j)
+        """
+        if not self.case_existe(i, j):
+            raise ValueError("La case n'existe pas")
+        return self._plateau[i][j]
 
     def verif_init(self, m, n):
         """

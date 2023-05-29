@@ -26,6 +26,10 @@ class Case:
             chaine += "CD"
         elif self.contenu[0] == "costume":
             chaine += "CS"
+        elif self.contenu[0] == "vide":
+            chaine += " "
+        elif self.contenu[0] == "cible":
+            chaine += "C"
         else:
             if self.contenu[0] == "invite":
                 chaine += "I"
@@ -57,7 +61,7 @@ class Case:
         :param nouveau_contenu:
             tuple de deux elements
             - le premier element est le contenu de la case et peut prendre les valeurs suivantes :
-                - "mur", "corde", "costume", "personne", "invite", "garde"
+                - "mur", "corde", "costume", "personne", "invite", "garde", "vide", "cible"
 
             - le deuxieme element est la direction de la personne et peut prendre les valeurs suivantes :
                 - "gauche", "droite", "haut", "bas", "inconnu", None
@@ -76,7 +80,7 @@ class Case:
         contenu, direction = nouveau_contenu
 
         # Verification de la validite du contenu
-        if contenu not in {"mur", "corde", "costume", "personne", "invite", "garde"}:
+        if contenu not in {"mur", "corde", "costume", "personne", "invite", "garde", "vide", "cible"}:
             raise ValueError("Le contenu n'est pas valide")
         if direction is not None:
             if contenu not in {"garde", "invite", "personne"}:

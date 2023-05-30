@@ -1,0 +1,171 @@
+from itertools import product
+
+# Constantes
+TAILLE_CARTE = 6
+
+# Modélisation STRIPS
+
+def position(name, x, y):
+    return ['Position', name, x, y]
+
+def orientation(name, orientation):
+    return ['Orientation', name, orientation]
+
+def meme_position(nameObj1, x1, y1, nameObj2, x2, y2):
+    return ['MemePosition', nameObj1, x1, y1, nameObj2, x2, y2]
+
+def possede(objet):
+    return ['Possede', objet]
+
+def cible_morte():
+    return ['CibleMorte']
+
+def action_effectuee():
+    return ['ActionEffectuee']
+
+# Actions
+
+def tourner_horaire():
+    preconditions = [orientation('Hitman','N')]
+    effects = [orientation('Hitman','E')]
+    return ['TournerHoraire', [], preconditions, effects]
+
+def tourner_antihoraire():
+    preconditions = [orientation('Hitman','N')]
+    effects = [orientation('Hitman','O')]
+    return ['TournerAntiHoraire', [], preconditions, effects]
+
+def avancer():
+    preconditions = [position('Hitman', x, y), orientation('N')]
+    effects = [position('Hitman', x, y+1)]
+    return ['Avancer', [], preconditions, effects]
+
+def tuer_cible():
+    preconditions = [position('Hitman', x, y), position('Garde', x, y), possede('CordeDePiano')]
+    effects = [cible_morte()]
+    return ['TuerCible', [], preconditions, effects]
+
+def neutraliser_garde():
+    preconditions = [position('Hitman', x, y), position('Garde', x, y)]
+    effects = []
+    return ['NeutraliserGarde', [x, y], preconditions, effects]
+
+def neutraliser_civil():
+    preconditions = [position('Hitman', x, y), position('Civil', x, y)]
+    effects = []
+    return ['NeutraliserCivil', [x, y], preconditions, effects]
+
+def passer_costume():
+    preconditions = [position('Hitman', x, y), position('Costume', x, y)]
+    effects = []
+    return ['PasserCostume', [], preconditions, effects]
+
+def prendre_costume():
+    preconditions = [position('Hitman', x, y), position('Costume', x, y)]
+    effects = [possede('Costume')]
+    return ['PrendreCostume', [], preconditions, effects]
+
+def prendre_arme(x, y):
+    preconditions = [position('Hitman', x, y), position('Arme', x, y)]
+    effects = [possede('CordeDePiano')]
+    return ['PrendreArme', [], preconditions, effects]
+
+# Fonctions utilitaires
+
+def generate_all_possible_positions():
+    positions = []
+    for x in range(TAILLE_CARTE):
+        for y in range(TAILLE_CARTE):
+            positions.append((x, y))
+    return positions
+
+def generate_all_possible_orientations():
+    return ['N', 'S', 'E', 'O']
+
+def generate_all_possible_objects():
+    return ['Hitman', 'Garde', 'Civil', 'Cible', 'Costume', 'CordeDePiano']
+
+
+def get_possible_actions(state):
+    possible_actions = []
+    for action in all_actions:
+            possible_actions.append(action)
+        # if all(precondition in state for precondition in action.preconditions):
+        #     possible_actions.append(action)
+    return possible_actions
+
+def apply_action(state, action):
+    # à faire: supprimer l'orientation précédent ? 
+    new_state = state.copy()
+    for effect in action[3]:
+        new_state.append(effect) #effects
+    return new_state
+
+# Initialisation des prédicats et actions
+
+all_actions = [
+    tourner_horaire(),
+    tourner_antihoraire(),
+    # avancer(),
+    # tuer_cible(),
+    # neutraliser_civil(),
+    # neutraliser_civil(),
+    # passer_costume(),
+    # prendre_costume(),
+    # prendre_arme()
+]
+
+
+
+def is_goal_state(goal, state):
+    # return [cible_morte()] in state 
+    return goal in state
+
+# Exécution de la recherche de plan
+def search_plan():
+    # initial_state = [
+    #     position('Hitman', 0, 0),
+    #     orientation('Hitman','N'),
+    #     position('Cible', 0, 3),
+    #     position('Garde', 4, 5),
+    #     orientation('Garde', 'S'),
+    #     position('Civil', 5, 2),
+    #     position('Costume', 3, 5),
+    #     position('Arme', 5, 0)
+    # ]
+
+    initial_state = [
+        position('Hitman', 0, 0),
+        orientation('Hitman','N'),
+    ]
+
+    initial_plan = []
+    game = [[initial_state, initial_plan]]
+    print("Game: ", game)
+    
+    goal = ['Orientation', 'Hitman', 'O']
+    print('Current goal is ', goal)
+    indice_current_state = 0
+    while game:
+        current_state = game[indice_current_state][0] 
+        current_plan = game[indice_current_state][1]
+        print("Current state: ", current_state)
+        
+        if is_goal_state(goal, current_state):
+            return current_plan
+        possible_actions = get_possible_actions(current_state)
+        for action in possible_actions:
+            new_state = apply_action(current_state, action)
+            new_plan = current_plan + [action[0]]
+            game.append( [new_state, new_plan] )
+        indice_current_state += 1
+    return []
+
+# Exemple d'utilisation
+
+plan = search_plan()
+print('Liste des actions à faire: ')
+if plan:
+    for state in plan:
+        print(state)
+else: print("Aucun plan trouvé.")

@@ -5,8 +5,8 @@ from queue import PriorityQueue
 
 Action = namedtuple("Action", ("name"))
 actions = {
-		"avancer" : {Action("avancer")},
-		"tourner_horaire" : {Action("tourner_horaire")},
+    "avancer" : {Action("avancer")},
+    "tourner_horaire" : {Action("tourner_horaire")},
     "tourner_antihoraire" : {Action("tourner_antihoraire")},
     "tuer_cible" : {Action("tuer_cible")},
     "neutraliser_garde" : {Action("neutraliser_garde")},
@@ -57,7 +57,7 @@ Etat = namedtuple("Etat", ("position", "direction", "avoir_corde", "avoir_costum
 etat_s0 = Etat((1, 0), "haut", False, False, False)
 
 world_example = [
-		[HC.EMPTY, HC.EMPTY, HC.EMPTY, HC.SUIT, HC.GUARD_S, HC.WALL, HC.WALL],
+    [HC.EMPTY, HC.EMPTY, HC.EMPTY, HC.SUIT, HC.GUARD_S, HC.WALL, HC.WALL],
     [HC.EMPTY, HC.WALL, HC.EMPTY, HC.EMPTY, HC.EMPTY, HC.EMPTY, HC.EMPTY],
     [HC.TARGET, HC.WALL, HC.EMPTY, HC.EMPTY, HC.EMPTY, HC.CIVIL_N, HC.EMPTY],
     [HC.WALL, HC.WALL, HC.EMPTY, HC.GUARD_E, HC.EMPTY, HC.CIVIL_W, HC.CIVIL_E],
@@ -303,7 +303,7 @@ def recherche_a_etoile(etat_init, goals, succ):
     queue.put((0, etat_init))
     save = {etat_init: None}
     
-		while not queue.empty():
+    while not queue.empty():
         _, etat = queue.get()
         
         if goals(etat, map_rules):

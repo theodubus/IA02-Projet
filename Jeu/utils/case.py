@@ -7,11 +7,13 @@ class Case:
 
     Les methodes utiles sont :
         - contenu : getter et setter pour le contenu de la case, permettant de verifier la validite du contenu
+        - case_interdite : renvoie False si hitman a le droit d'etre sur cette case, True sinon ou si le contenu de la case est inconnu
         - contenu_connu : renvoie True si le contenu de la case est connu, False sinon (voir plus bas)
     """
 
     def __init__(self):
         self._contenu = ("inconnu", None)
+        self._proven_not_guard = False
 
     def __str__(self):
         """
@@ -33,10 +35,8 @@ class Case:
         else:
             if self.contenu[0] == "invite":
                 chaine += "I"
-            elif self.contenu[0] == "garde":
+            else: # self.contenu[0] == "garde":
                 chaine += "G"
-            else: # self.contenu[0] == "personne"
-                chaine += "P"
 
             if self.contenu[1] == "gauche":
                 chaine += "←"
@@ -44,12 +44,20 @@ class Case:
                 chaine += "→"
             elif self.contenu[1] == "haut":
                 chaine += "↑"
-            elif self.contenu[1] == "bas":
+            else: # self.contenu[1] == "bas":
                 chaine += "↓"
-            else: # self.contenu[1] == "inconnu"
-                chaine += "?"
         return chaine
-
+    
+    @property
+    def proven_not_guard(self):
+        return self._proven_not_guard
+    
+    @proven_not_guard.setter
+    def proven_not_guard(self, value):
+        if value is not True:
+            raise ValueError("La valeur ne peut que passer de False a True")
+        self._proven_not_guard = value
+        
     @property
     def contenu(self):
         return self._contenu
@@ -61,15 +69,13 @@ class Case:
         :param nouveau_contenu:
             tuple de deux elements
             - le premier element est le contenu de la case et peut prendre les valeurs suivantes :
-                - "mur", "corde", "costume", "personne", "invite", "garde", "vide", "cible"
+                - "mur", "corde", "costume", "invite", "garde", "vide", "cible"
 
             - le deuxieme element est la direction de la personne et peut prendre les valeurs suivantes :
-                - "gauche", "droite", "haut", "bas", "inconnu", None
+                - "gauche", "droite", "haut", "bas", None
 
-            On utilise personne quand on sait qu'il y a une personne mais qu'on ne sait pas si c'est un garde ou un invite.
-            "inconnu" pour la direction signifie qu'on ne sait pas la direction de la personne. Pour les objets et les murs,
-            on laisse la direction a None. None est donc pour les objets uniquement, une personne doit avoir une direction (qui
-            peut etre "inconnu").
+            Pour les objets et les murs, on laisse la direction a None. None est donc pour les objets uniquement,
+            une personne doit avoir une direction.
         """
         if self.contenu_connu():
             raise ValueError("Le contenu de la case est deja connu")
@@ -80,24 +86,28 @@ class Case:
         contenu, direction = nouveau_contenu
 
         # Verification de la validite du contenu
-        if contenu not in {"mur", "corde", "costume", "personne", "invite", "garde", "vide", "cible"}:
+        if contenu not in {"mur", "corde", "costume", "invite", "garde", "vide", "cible"}:
             raise ValueError("Le contenu n'est pas valide")
         if direction is not None:
-            if contenu not in {"garde", "invite", "personne"}:
+            if contenu not in {"garde", "invite"}:
                 raise ValueError("Un objet n'a pas de direction")
-            if direction not in {"gauche", "droite", "haut", "bas", "inconnu"}:
+            if direction not in {"gauche", "droite", "haut", "bas"}:
                 raise ValueError("La direction n'est pas valide")
         else:
-            if contenu in {"garde", "invite", "personne"}:
-                raise ValueError("Une personne doit avoir une direction : \n- gauche \n- droite \n- haut \n- bas \n- inconnu")
+            if contenu in {"garde", "invite"}:
+                raise ValueError("Une personne doit avoir une direction : \n- gauche \n- droite \n- haut \n- bas")
 
         self._contenu = (contenu, direction)
+
+    def case_interdite(self):
+        """
+        Renvoie False si hitman a le droit d'etre sur cette case
+        Renvoie True sinon ou si le contenu de la case est inconnu
+        """
+        return self.contenu[0] in {"mur", "garde"}
     
     def contenu_connu(self):
         """
         Renvoie True si le contenu de la case est connu, False sinon
-
-        Une case est consideree comme connue si on sait ce qu'il y a dedans et sa direction (si c'est une personne).
-        Une case connue est donc une case que l'on a pas besoin d'aller "voir" car on connait déjà tout son contenu.
         """
-        return self.contenu[0] not in {"inconnu", "personne"} and self.contenu[1] != "inconnu"
+        return self.contenu[0] != "inconnu"

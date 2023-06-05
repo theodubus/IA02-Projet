@@ -1,4 +1,5 @@
 from .case import Case
+from .hitman import *
 
 class Plateau:
     """
@@ -19,7 +20,7 @@ class Plateau:
         - cell_to_var : converti les coordonnees et le typed'une case en variable cnf
         - var_to_cell : converti une variable cnf en coordonnees de case et le type
         - voisins : renvoie les cases voisines de la case (haut, bas, gauche, droite)
-        - voisins_2_cases : renvoie les cases eloignees de deux cases dans la meme direction
+        - voisins_gardes : renvoie les cases depuis lesquelles on peut etre vu par un garde
         - cases_entendre : renvoie les cases autour de la case dans un rayon de 2, plus la case actuelle elle-meme
         - cases_voir : renvoie les trois cases dans la direction donnee
         
@@ -40,9 +41,51 @@ class Plateau:
         if self.verif_init(m, n):
             self._m = m
             self._n = n
-            self.clauses = set()
+            self._history = dict() # historique temporaire pour le calcul de la distance minimale
+            self._pos_hitman = None # position du hitman
 
         self._plateau = [[Case() for _ in range(n)] for _ in range(m)]
+
+    @property
+    def pos_hitman(self):
+        return self._pos_hitman
+    
+    @pos_hitman.setter
+    def pos_hitman(self, pos):
+        i, j, direction = pos
+        if not self.case_existe(i, j):
+            raise ValueError("La case n'existe pas")
+        if direction not in {"gauche", "droite", "haut", "bas"}:
+            raise ValueError("La direction n'est pas valide")
+        self._pos_hitman = (i, j, direction)
+
+    def board_to_map(self):
+        """
+        Renvoie le plateau sous forme de dictionnaire
+        """
+        equiv = {
+            ("vide", None) : HC.EMPTY,
+            ("mur", None) : HC.WALL,
+            ("corde", None) : HC.PIANO_WIRE,
+            ("costume", None) : HC.SUIT,
+            ("garde", "haut") : HC.GUARD_N,
+            ("garde", "droite") : HC.GUARD_E,
+            ("garde", "bas") : HC.GUARD_S,
+            ("garde", "gauche") : HC.GUARD_W,
+            ("invite", "haut") : HC.CIVIL_N,
+            ("invite", "droite") : HC.CIVIL_E,
+            ("invite", "bas") : HC.CIVIL_S,
+            ("invite", "gauche") : HC.CIVIL_W,
+            ("cible", None) : HC.TARGET
+        }
+        m, n = self.infos_plateau()
+        map = dict()
+        for i in range(m):
+            for j in range(n):
+                if self.get_case(i, j).contenu not in equiv.keys():
+                    raise ValueError("Le contenu de la case n'est pas valide")
+                map[(i, j)] = equiv[self.get_case(i, j).contenu]
+        return map
 
     def case_existe(self, i, j):
         """
@@ -59,6 +102,103 @@ class Plateau:
             raise ValueError("La case n'existe pas")
 
         return abs(i1 - i2) + abs(j1 - j2)
+    
+    def distance_minimale(self, i1, j1, i2, j2):
+        """
+        Methode distance minimale utilisee par l'utilisateur
+        """
+        self._history = dict()
+        dist = self._distance_minimale(i1, j1, i2, j2)
+        if dist == float("inf"):
+            raise ValueError(f"Il n'existe pas de chemin entre les cases ({i1}, {j1}) et ({i2}, {j2})")
+        return dist
+    
+    def _distance_minimale(self, i1, j1, i2, j2, case_appelante=None):
+        """
+        Renvoie la distance minimale entre deux cases, c'est a dire 
+        le nombre minimum de cases a traverser pour aller de (i1, j1) a (i2, j2)
+
+        Le but est d'obtenir une heuristique de "la case la plus proche" en tenant compte
+        des murs et des gardes que l'on ne peut pas traverser.
+
+        Cette methode est une methode intermediaire utilisee par la methode distance_minimale.
+        L'interet est de remettre a zero l'historique des cases visitees a chaque appel de
+        distance_minimale, ce qui ne peut se faire qu'ici car la methode est recursive.
+
+        Si il n'existe pas de chemin direct entre les deux cases, on cherche un chemin direct entre
+        ses voisins et l'objectif.
+        Dans ce cas, il est pertinent de faire une exploration en largeur des possibilites :
+        - on voit s'il existe un chemin direct depuis les cases distantes de 1, puis 2, 3, etc
+        """
+
+        if not self.case_existe(i1, j1) or not self.case_existe(i2, j2):
+            raise ValueError("La case n'existe pas")
+        
+        if (i1, j1) in self._history.keys():
+            return self._history[(i1, j1)]
+        
+        if self.chemin_direct(i1, j1, i2, j2):
+            self._history[(i1, j1)] = self.distance_manhattan(i1, j1, i2, j2)
+            return self._history[(i1, j1)]
+        
+        self._history[(i1, j1)] = float("inf")
+        
+        voisins = [v for v in self.voisins(i1, j1) if not self.get_case(v[0], v[1]).case_interdite()]
+
+        if case_appelante is not None:
+            voisins = [v for v in voisins if v != case_appelante]
+
+        if voisins == []:
+            return float("inf")
+
+        for v in voisins:
+            if self.chemin_direct(v[0], v[1], i2, j2):
+                return self._distance_minimale(v[0], v[1], i2, j2, (i1, j1)) + 1
+
+        shortest = float("inf")
+        for v in voisins:
+            distance = self._distance_minimale(v[0], v[1], i2, j2, (i1, j1))
+            if distance < shortest:
+                shortest = distance
+
+        self._history[(i1, j1)] = shortest + 1
+        return self._history[(i1, j1)]
+
+    def chemin_direct(self, i1, j1, i2, j2):
+        """
+        Permet de savoir s'il existe un chemin simple et direct (sans detour) entre deux cases
+        """
+
+        if not self.case_existe(i1, j1) or not self.case_existe(i2, j2):
+            raise ValueError("La case n'existe pas")
+        
+        detour1 = False
+        detour2 = False
+
+        # horizontal puis vertical
+        for i in range(min(i1, i2), max(i1, i2)+1):
+            if self.get_case(i, j1).case_interdite():
+                detour1 = True
+                break
+        if not detour1:
+            for j in range(min(j1, j2), max(j1, j2)+1):
+                if self.get_case(i2, j).case_interdite():
+                    detour1 = True
+                    break
+
+        # vertical puis horizontal
+        if detour1:
+            for j in range(min(j1, j2), max(j1, j2)+1):
+                if self.get_case(i1, j).case_interdite():
+                    detour2 = True
+                    break
+            if not detour2:
+                for i in range(min(i1, i2), max(i1, i2)+1):
+                    if self.get_case(i, j2).case_interdite():
+                        detour2 = True
+                        break
+
+        return not detour1 or not detour2
     
     def cell_to_var(self, i, j, type):
         """
@@ -142,6 +282,14 @@ class Plateau:
 
         :return: chaine de caracteres representant le plateau
         """
+        directions = {"gauche": "←", "droite": "→", "haut": "↑", "bas": "↓"}
+
+        if self.pos_hitman is None:
+            i_hitman, j_hitman, direction_hitman = (-1, -1, None)
+        else:
+            i_hitman, j_hitman, direction_hitman = self.pos_hitman
+        
+        
         m, n = self.infos_plateau()
         plateau_str = "    "
         plateau_str += "+-----" * m + "+\n"
@@ -150,7 +298,13 @@ class Plateau:
         for i in range(n-1, -1, -1):
             plateau_str += f" {i}  |"
             for j in range(m):
-                plateau_str += f"{str(self._plateau[j][i]):^5}|"
+                if i == j_hitman and j == i_hitman:
+                    hitman = f"{'H' + directions[direction_hitman]}"
+                    if str(self._plateau[j][i]) != " ":
+                        hitman += f" {str(self._plateau[j][i])}"
+                    plateau_str += f"{hitman :^5}|"
+                else:
+                    plateau_str += f"{str(self._plateau[j][i]):^5}|"
             plateau_str += "\n    "
             plateau_str += "+-----" * m + "+\n"
 
@@ -174,17 +328,54 @@ class Plateau:
         voisins = [c for c in candidates if self.case_existe(c[0], c[1])]
         return voisins
     
-    def voisins_2_cases(self, i, j):
+    def voisins_gardes(self, i, j):
         """
-        Renvoie les cases eloignees de deux cases dans la meme direction
-        Exemple : haut-haut, bas-bas, gauche-gauche, droite-droite
-        Cette méthode est utile pour savoir si on est visible par un garde
+        Renvoie les cases depuis lesquelles on peut etre vu par un garde
         """
         if not self.case_existe(i, j):
             raise ValueError(f"La case ({i}, {j}) n'existe pas")
+        
+        droite = []
+        if self.case_existe(i-1, j):
+            if self.get_case(i-1, j).contenu[0] == "garde":
+                droite.append((i-1, j))
+            elif self.get_case(i-1, j).contenu[0] in {"inconnu", "vide"}:
+                if self.get_case(i-1, j).contenu[0] == "inconnu":
+                    droite.append((i-1, j))
+                if self.case_existe(i-2, j) and self.get_case(i-2, j).contenu[0] in {"inconnu", "garde"}:
+                    droite.append((i-2, j))
 
-        candidates = [(i-2, j), (i+2, j), (i, j-2), (i, j+2)]
-        voisins = [c for c in candidates if self.case_existe(c[0], c[1])]
+        gauche = []
+        if self.case_existe(i+1, j):
+            if self.get_case(i+1, j).contenu[0] == "garde":
+                gauche.append((i+1, j))
+            elif self.get_case(i+1, j).contenu[0] in {"inconnu", "vide"}:
+                if self.get_case(i+1, j).contenu[0] == "inconnu":
+                    gauche.append((i+1, j))
+                if self.case_existe(i+2, j) and self.get_case(i+2, j).contenu[0] in {"inconnu", "garde"}:
+                    gauche.append((i+2, j))
+
+        bas = []
+        if self.case_existe(i, j+1):
+            if self.get_case(i, j+1).contenu[0] == "garde":
+                bas.append((i, j+1))
+            elif self.get_case(i, j+1).contenu[0] in {"inconnu", "vide"}:
+                if self.get_case(i, j+1).contenu[0] == "inconnu":
+                    bas.append((i, j+1))
+                if self.case_existe(i, j+2) and self.get_case(i, j+2).contenu[0] in {"inconnu", "garde"}:
+                    bas.append((i, j+2))
+
+        haut = []
+        if self.case_existe(i, j-1):
+            if self.get_case(i, j-1).contenu[0] == "garde":
+                haut.append((i, j-1))
+            elif self.get_case(i, j-1).contenu[0] in {"inconnu", "vide"}:
+                if self.get_case(i, j-1).contenu[0] == "inconnu":
+                    haut.append((i, j-1))
+                if self.case_existe(i, j-2) and self.get_case(i, j-2).contenu[0] in {"inconnu", "garde"}:
+                    haut.append((i, j-2))
+
+        voisins = {"gauche": gauche, "droite": droite, "haut": haut, "bas": bas}
         return voisins
     
     def cases_entendre(self, i, j):
@@ -207,9 +398,10 @@ class Plateau:
 
         Cette methode est utile lorsque le joueur veut "voir"
         """
+        
         if not self.case_existe(i, j):
             raise ValueError(f"La case ({i}, {j}) n'existe pas")
-
+        
         if direction not in {"gauche", "droite", "haut", "bas"}:
             raise ValueError("La direction n'est pas valide")
         
@@ -222,6 +414,16 @@ class Plateau:
         else: # (direction == "bas")
             candidates = [(i, j-1), (i, j-2), (i, j-3)]
 
+        # on enleve les cases qui n'existent pas
         voisins = [c for c in candidates if self.case_existe(c[0], c[1])]
+
+        # on enleve les cases qui sont cachees par un objet
+        for k, c in enumerate(voisins):
+            if self.get_case(c[0], c[1]).contenu[0] not in {"vide", "inconnu"}:
+                if self.get_case(c[0], c[1]).contenu[0] in {"mur", "garde"}:
+                    voisins = voisins[:k]
+                else:
+                    voisins = voisins[:k+1]
+                break
 
         return voisins

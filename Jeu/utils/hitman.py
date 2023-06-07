@@ -1,5 +1,5 @@
-__author__ = "Sylvain Lagrue, and Hénoïk Willot"
-__copyright__ = "Copyright 2023, Université de technologie de Compiègne"
+__author__ = "Sylvain Lagrue, and Henoïk Willot"
+__copyright__ = "Copyright 2023, Universite de technologie de Compiegne"
 __license__ = "LGPL-3.0"
 __version__ = "0.4.0"
 __maintainer__ = "Sylvain Lagrue"
@@ -87,6 +87,44 @@ world_example = [
     [HC.EMPTY, HC.EMPTY, HC.EMPTY, HC.EMPTY, HC.EMPTY, HC.EMPTY, HC.EMPTY],
     [HC.EMPTY, HC.EMPTY, HC.WALL, HC.WALL, HC.EMPTY, HC.PIANO_WIRE, HC.EMPTY],
 ]
+
+
+world_example_ = [
+    [HC.GUARD_S, HC.EMPTY, HC.EMPTY, HC.EMPTY, HC.EMPTY, HC.EMPTY, HC.EMPTY],
+    [HC.EMPTY, HC.EMPTY, HC.WALL, HC.WALL, HC.EMPTY, HC.WALL, HC.EMPTY],
+    [HC.EMPTY, HC.EMPTY, HC.WALL, HC.EMPTY, HC.EMPTY, HC.EMPTY, HC.GUARD_W],
+    [HC.EMPTY, HC.WALL, HC.PIANO_WIRE, HC.EMPTY, HC.EMPTY, HC.EMPTY, HC.GUARD_S],
+    [HC.EMPTY, HC.WALL, HC.GUARD_E, HC.EMPTY, HC.EMPTY, HC.WALL, HC.EMPTY],
+    [HC.CIVIL_E, HC.WALL, HC.TARGET, HC.EMPTY, HC.EMPTY, HC.SUIT, HC.CIVIL_W],
+]
+
+world_example_ = [
+    [HC.TARGET, HC.PIANO_WIRE, HC.SUIT],
+    [HC.GUARD_E, HC.EMPTY, HC.EMPTY],
+    [HC.GUARD_E, HC.EMPTY, HC.EMPTY],
+    [HC.WALL, HC.WALL, HC.EMPTY],
+    [HC.CIVIL_E, HC.EMPTY, HC.EMPTY],
+]
+
+world_example_ = [
+    [HC.EMPTY, HC.EMPTY, HC.EMPTY, HC.GUARD_W, HC.EMPTY, HC.GUARD_W, HC.EMPTY],
+    [HC.EMPTY, HC.WALL, HC.EMPTY, HC.WALL, HC.EMPTY, HC.GUARD_S, HC.EMPTY],
+    [HC.PIANO_WIRE, HC.EMPTY, HC.EMPTY, HC.EMPTY, HC.EMPTY, HC.EMPTY, HC.CIVIL_N],
+    [HC.WALL, HC.WALL, HC.EMPTY, HC.GUARD_E, HC.EMPTY, HC.CIVIL_W, HC.SUIT],
+    [HC.EMPTY, HC.EMPTY, HC.EMPTY, HC.EMPTY, HC.EMPTY, HC.EMPTY, HC.TARGET],
+    [HC.EMPTY, HC.EMPTY, HC.EMPTY, HC.WALL, HC.EMPTY, HC.EMPTY, HC.EMPTY],
+]
+
+world_example_ = [
+    [HC.EMPTY, HC.EMPTY, HC.WALL, HC.EMPTY, HC.EMPTY, HC.GUARD_W, HC.EMPTY],
+    [HC.EMPTY, HC.EMPTY, HC.EMPTY, HC.EMPTY, HC.EMPTY, HC.EMPTY, HC.EMPTY],
+    [HC.TARGET, HC.EMPTY, HC.PIANO_WIRE, HC.WALL, HC.EMPTY, HC.EMPTY, HC.GUARD_W],
+    [HC.EMPTY, HC.WALL, HC.CIVIL_N, HC.GUARD_E, HC.EMPTY, HC.WALL, HC.SUIT],
+    [HC.EMPTY, HC.EMPTY, HC.EMPTY, HC.EMPTY, HC.EMPTY, HC.CIVIL_S, HC.EMPTY],
+    [HC.EMPTY, HC.EMPTY, HC.WALL, HC.EMPTY, HC.EMPTY, HC.EMPTY, HC.EMPTY],
+]
+
+
 
 complete_map_example = {
     (0, 5): HC.EMPTY,

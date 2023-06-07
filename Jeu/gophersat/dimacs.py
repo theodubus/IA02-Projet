@@ -3,6 +3,7 @@ import subprocess
 import os
 
 def clauses_to_dimacs(clauses, nb_var):
+    clauses = tuple(set(tuple(tuple(clause) for clause in clauses))) # conversion temporaire en set puis reconversion en tuple pour enlever les doublons
     nb_clause = len(clauses)
     chaine = f"p cnf {nb_var} {nb_clause}\n"
     for clause in clauses:
@@ -36,6 +37,6 @@ def solve(clauses, nb_var):
     dimacs = clauses_to_dimacs(clauses, nb_var)
     write_dimacs_file(dimacs, "hitman.cnf")
 
-    satisfiable, result = exec_gophersat("hitman.cnf")
+    satisfiable, _ = exec_gophersat("hitman.cnf")
 
     return satisfiable

@@ -1,14 +1,47 @@
 from utils.clauses_combin import *
-from utils.case import Case
 from utils.plateau import Plateau
-from utils.hitman import HC, HitmanReferee, complete_map_example
-from pprint import pprint
+from utils.hitman import HC, HitmanReferee
 from gophersat.dimacs import solve
 import time
 import heapq
+from typing import Tuple, List, Dict
+
 
 
 class Game:
+    """
+    Classe qui represente le jeu
+
+    Le jeu est caracterise par :
+        - plateau : objet plateau qui represente le plateau du jeu (notre modelisation de nos connaissances)
+        - hitman : objet hitman qui permet de communiquer avec le referee
+        - clauses : liste de clauses qui represente notre base de clauses
+        - penalites : tableau contenant le nombre exact de gardes par lesquels on est vu pour chaque case (si ce nombre est connu, False sinon)
+        - old_penalty : nombre de penalites avant la derniere action
+        - status : dictionnaire contenant les informations sur l'etat actuel du jeu
+        - nb_variables : nombre de variables dans la base de clauses
+        - attente : liste de couples ou l'on sait pour chaque couple qu'au moins une des deux cases est un garde (voir plus bas)
+        - temporisation : booleen qui indique si on utilise la temporisation ou non (pour faire les affichages plus lentement)
+        - no_sat : booleen qui indique si on utilise sat pour calculer le risque ou non (pour faire les affichages plus lentement) #completer
+        - _dict_cases : dictionnaire qui permet de convertir un contenu de case en un tuple (element, direction)
+        - _dict_directions : dictionnaire qui permet de convertir une direction en un chaine de caracteres
+
+    
+    Les methodes utiles sont :
+        - pos_actuelle : renvoie la position actuelle du hitman
+        - direction_actuelle : renvoie la direction actuelle du hitman
+        - phase_1 : methode qui implemente la phase 1 du jeu (voir plus bas)
+        - explore : methode qui explore une case pour en determiner le contenu (voir plus bas)
+        - prochain_objectif : methode qui determine la prochaine case a explorer (voir plus bas)
+        - prochaine_case : methode qui determine la prochaine case a laquelle se deplacer (voir plus bas)
+        - penalite_minimale : methode qui determine la penalite minimale pour aller a une case (voir plus bas)
+        - risque : methode qui determine le risque d'aller sur une case (voir plus bas)
+        - update_knowledge : methode qui met a jour notre modelisation du jeu (voir plus bas)
+        - update_hitman : methode qui met a jour la position et la direction du hitman sur le plateau (voir plus bas)
+        - tourner : methode qui tourne jusqu'a ce qu'une case soit visible (voir plus bas)
+        - satisfiable : methode qui determine si la base de clauses est satisfiable (voir plus bas)
+        
+    """
     def __init__(self):
         self.plateau = None
         self.hitman = HitmanReferee()
@@ -20,7 +53,7 @@ class Game:
         self.attente = []
         self.temporisation = True
         self.no_sat = False
-        self.dict_cases = {
+        self._dict_cases = {
             HC.EMPTY : ("vide", None),
             HC.WALL : ("mur", None),
             HC.PIANO_WIRE : ("corde", None),
@@ -35,7 +68,7 @@ class Game:
             HC.CIVIL_W : ("invite", "gauche"),
             HC.TARGET : ("cible", None)
         }
-        self.dict_directions = {
+        self._dict_directions = {
             HC.N : "haut",
             HC.E : "droite",
             HC.S : "bas",
@@ -43,7 +76,7 @@ class Game:
         }
 
 
-    def pos_actuelle(self):
+    def pos_actuelle(self)-> Tuple[int, int]:
         """
         Renvoit la position actuelle du hitman
         """
@@ -52,25 +85,34 @@ class Game:
 
         return self.status['position']
     
-    def direction_actuelle(self):
+    def direction_actuelle(self)-> str:
         """
         Renvoit la direction actuelle du hitman
         """
         if self.status is None:
             raise ValueError("Le jeu n'a pas ete initialise")
 
-        return self.dict_directions[self.status['orientation']]
+        return self._dict_directions[self.status['orientation']]
             
 
-    def phase_1(self, temporisation=True, no_sat=False):
+    def phase_1(self, temporisation: bool = True, no_sat: bool = False):
         """
-        méthode encore en construction
+        Implementation de la phase 1 du jeu. Le deroule est le suivant :
 
-        pour le moment il n'y a que les clauses des n gardes et m invites à l'entree du jeu
-        il reste l'exploration du jeu a faire, ainsi que la mise a jour du plateau avec plateau.set_case()
-        et l'ajout de clauses au fur et a mesure
+        I. Initialisation
+            1. On initialise le jeu avec start_phase1 et en recuperant les informations de la phase 1
+            2. On cree un objet plateau pour faire notre modelisation du jeu
+            3. On initialise la base de clauses
+        II. Deroulement
+            1. Tant qu'il reste des cases dont le contenu est inconnu :
+                - On determine la prochaine case a explorer selon l'heuristique "penalite_minimale" grace a "prochain_objectif"
+                - On explore la case en question avec "explore"
+        III. Fin
+            1. On envoie le contenu du plateau a hitman pour verifier si on a correctement rempli le plateau
+            2. On affiche le resultat
         """
 
+        # Initialisation
         self.status = self.hitman.start_phase1()
         lignes = self.status['m']
         colonnes = self.status['n']
@@ -95,24 +137,25 @@ class Game:
         print(self.plateau)
         self.update_knowledge()
         i_act, j_act = self.pos_actuelle()
-        self.clauses.append([-self.plateau.cell_to_var(i_act, j_act, "garde")])
+        self.clauses.append([-self.plateau.cell_to_var(i_act, j_act, "garde")]) # On ne peut pas apparaitre sur un garde car le jeu l'interdit
         print(self.plateau)
 
-
+        # Deroulement
         while self.prochain_objectif():
             i, j = self.prochain_objectif()
             self.explore(i, j)
 
-        if self.hitman.send_content(self.plateau.board_to_map()):
-            print(f"Gagné ! trouve avec {self.status['penalties']} penalites")
+        # Fin
+        if self.hitman.send_content(self.plateau.board_to_dict()):
+            print(f"Gagne ! trouve avec {self.status['penalties']} penalites")
         else:
             print("Perdu !")
 
 
 
-    def explore(self, i_objectif, j_objectif):
+    def explore(self, i_objectif: int, j_objectif: int):
         """
-        fonction d'exploration qui a pour but d'effectuer une serie d'actions pour determiner
+        methode d'exploration qui a pour but d'effectuer une serie d'actions pour determiner
         le contenu de la case (i_objectif, j_objectif).
 
         Pour se faire, on fait dans un premier temps la liste des cases depuis lesquelles on peut (a priori)
@@ -121,11 +164,12 @@ class Game:
 
         Une fois la liste obtenue, on effectue les actions suivantes :
             - Tant qu'on est pas sur une case depuis laquelle on peut voir la case (i_objectif, j_objectif) :
-                - Calculer la distance entre chacune de nos cases voisines et la cases pour laquelle on peut voir la plus proche
-                - Se deplacer sur la case voisine la plus proche
+                - Calculer l'heuristique entre chacune de nos cases voisines et les cases pour laquelle on peut voir l'objectif et prendre le minimum
+                - Se deplacer sur la meilleure case voisine
                 - (Mettre a jour notre connaissance du plateau et l'afficher)
             - Si la case objectif est visible, on a termine
             - Sinon, on retire la case actuelle de la liste des cases depuis lesquelles on peut voir la case objectif et on reprend la boucle
+                - Si la liste finit par etre vide, alors la case objectif n'est pas accessible
         """
 
         if self.status is None:
@@ -139,19 +183,25 @@ class Game:
         i_act, j_act = self.pos_actuelle()
 
         while not self.plateau.get_case(i_objectif, j_objectif).contenu_connu() and targets != []:
+            # Le contenu peut etre deduit en cours d'exploration sans avoir ete vu si c'est un garde,
+            # On rajoute donc la condition contenu inconnu dans le deuxieme while pour eviter d'aller explorer inutilement
             while (i_act, j_act) not in targets and not self.plateau.get_case(i_objectif, j_objectif).contenu_connu():
                 voisin_min = self.prochaine_case(i_act, j_act, targets)
                 
                 if voisin_min is None:
                     raise ValueError("Aucun voisin n'est accessible")
                 
-                # A ce stade, soit on tourne 1 fois ou 2 pour se retrouver dans la bonne direction et voir si la case est visitable
-                # soit on est directement devant, et on avance
+                # self.tourner permet de se tourner vers la case voisine voulue et ainsi de se preparer a s'y deplacer
+                # Cependant, si on est actuellement visible par un garde, il peut etre desavantageux de tourner et ainsi prendre des penalites
+                # Il vaut surement mieux avancer et se retourner plus loin. La methode gere ce cas et renvoie True si elle a fait avancer hitman
+                # pour eviter de se faire voir plus longtemps 
                 reflexe_survie = self.tourner(voisin_min[0], voisin_min[1])
 
+                # A ce stade, apres tourner, il existe des cas ou le contenu a pu etre deduit, si c'est le cas on casse la boucle
                 if self.plateau.get_case(i_objectif, j_objectif).contenu_connu():
                     break
 
+                # On avance vers la case voisine si elle n'est pas interdite et qu'on s'est tourne vers elle (et donc self.tourner a renvoye False)
                 if not self.plateau.get_case(voisin_min[0], voisin_min[1]).case_interdite() and not reflexe_survie:
                     self.status = self.hitman.move()
                     self.update_knowledge()
@@ -159,6 +209,7 @@ class Game:
 
                 i_act, j_act = self.pos_actuelle()
 
+            # A ce stade, il existe des cas ou le contenu a pu etre deduit, si c'est le cas on casse la boucle
             if self.plateau.get_case(i_objectif, j_objectif).contenu_connu():
                 break
 
@@ -171,35 +222,64 @@ class Game:
                 # on recalcule les targets avec case_voir, qui s'occupe d'enlever les cases non pertinentes a cause d'obstacles
                 targets = []
                 for direction in directions:
-                    targets += self.plateau.cases_voir(i_objectif, j_objectif, direction)
+                    targets += self.plateau.cases_voir(i_objectif, j_objectif, direction) # cases_voir renverra les cases depuis lesquelles on peut voir la case objectif en fonction de nos nouvelles connaissances
 
         if targets == []:
             raise ValueError(f"La case ({i_objectif}, {j_objectif}) n'est pas accessible")
         
-    def prochaine_case(self, i_act, j_act, targets, voisins_actuels=None):
+    def prochaine_case(self, i_act: int, j_act: int, targets: List[Tuple[int, int]]) -> Tuple[int, int]:
         """
-        Détermine la prochaine case à explorer pour aller de (i_act, j_act) à (i_objectif, j_objectif)
+        Determine la prochaine case a laquelle se deplacer pour aller de (i_act, j_act) a (i_objectif, j_objectif)
+
+        L'heuristique utilisee est la penalite minimale
         """
-        if voisins_actuels is None:
-            voisins_actuels = [v for v in self.plateau.voisins(i_act, j_act) if not self.plateau.get_case(v[0], v[1]).case_interdite()]
-        dist_min = float("inf")
+        voisins_actuels = [v for v in self.plateau.voisins(i_act, j_act) if not self.plateau.get_case(v[0], v[1]).case_interdite()]
+        penal_min = float("inf")
         voisin_min = None
 
         # voisin le plus proche
         for i_target, j_target in targets:
-            penalite_min = self.penalite_minimale(i_target, j_target, sat_coordinates=voisins_actuels)
+            penalite_min_tableau = self.penalite_minimale(i_target, j_target, sat_coordinates=voisins_actuels)
             for i_voisin, j_voisin in voisins_actuels:
-                dist = penalite_min[i_voisin][j_voisin]
+                penal = penalite_min_tableau[i_voisin][j_voisin]
                 
-                if dist < dist_min:
-                    dist_min = dist
+                if penal < penal_min:
+                    penal_min = penal
                     voisin_min = (i_voisin, j_voisin)
 
         return voisin_min
     
-    def penalite_minimale(self, i, j, sat_coordinates=()):
+    def penalite_minimale(self, i: int, j: int, sat_coordinates: List[Tuple[int, int]] = []) -> List[List[int]]:
         """
-        Renvoie la penalite minimale pour atteindre la case (i, j)
+        Methode definissant l'heuristique d'exploration pour la phase 1
+        Le retourn est un tableau m*n ou contient la penalite du meilleur chemin 
+        entre la case correspondante, et la case objectif (i, j)
+
+        Le principe (egalement explique dans le readme) est le suivant :
+            I. Debut
+                - On initialise toutes les penalites a +infini
+                - On fixe la penalite de la case objectif egale a son risque
+                - Pour chaque voisin de la case objectif, on ajoute dans un tas la penalite minimale polentielle
+                    de chaque voisin pour aller a la case objectif, egale a :
+                    la penalite de la case objectif + 1 + le risque du voisin
+                    L'element ajoute au tas est un tuple (penalite, i, j)
+            II. Deroulement
+                - Prendre dans le tas la penalite minimale potentielle
+                - Si la case correspondante a cette penalite a deja ete traitee, on passe a la suivante
+                - Sinon, on met a jour la penalite de la case correspondante (penalite minimale potentielle devient penalite minimale)
+                    - On ajoute dans le tas les voisins de la case correspondante avec leur penalite minimale potentielle, egales a :
+                        la penalite minimale de la case correspondante + 1 + le risque du voisin
+                - On recommence jusqu'a ce que le tas soit vide
+            III. Fin
+                - On renvoie le tableau des penalites minimales
+
+        En procedant de cette maniere, on rajoute a chaque iteration la nieme case de penalite
+        minimale pour aller a la case objectif
+
+        sat_coordinates est une liste de coordonnees pour lesquelles on utilisera SAT pour calculer le risque.
+        Quand cette liste est non vide, elle correspond aux voisins de la case actuelle.
+
+        On ne peut pas se permettre d'utiliser sat pour calculer le risque de toutes les cases car cela prendrait trop de temps.
         """
         m, n = self.plateau.infos_plateau()
         cases_traitees = set()
@@ -241,45 +321,73 @@ class Game:
         return penalites
 
         
-    def risque(self, i, j, use_sat=False):
+    def risque(self, i: int, j: int, use_sat: bool = False)-> int:
         """
         Determine le risque d'aller sur une case,
-        le resulat est un tuple du nombre minimum et maximum de gardes par lesquels ont peut etre vus
-        en passant par la case (i, j). On peut etre vu dans quatre directions differentes, donc
-        le nombre de gardes peut varier entre 0 et 4. (si deux gardes regardent dans la meme direction
-        et sont a cote, le premier bloque la vue du second)
+        On calcule d'abord un tuple (min, max) correspondant au nombre minimum et maximum de gardes
+        par lesquels on peut etre vus en passant par la case (i, j). On peut etre vu âr quatre
+        directions differentes, donc le nombre de gardes peut varier entre 0 et 4.
+        (si deux gardes regardent dans la meme direction et sont a cote, le premier bloque la vue du second)
+
+        La valeur renvoyee correspond a (4 * min) + max, ce qui revient lorsqu'on compare le risque de 
+        deux cases a se baser sur le min, puis sur le max en cas d'egalite.
+        (0, 0) -> 0
+        (0, 1) -> 1
+        (0, 2) -> 2
+        (0, 3) -> 3
+        (0, 4) -> 4
+        (1, 1) -> 5
+        (1, 2) -> 6
+        (1, 3) -> 7
+        (1, 4) -> 8
+        (2, 2) -> 10
+        (2, 3) -> 11
+        (2, 4) -> 12
+        (3, 3) -> 15
+        (3, 4) -> 16
+        (4, 4) -> 20
+
+        Au debut le nombre de penalite augmente de 1 en 1, puis a la fin cela augmente plus vite lorsque
+        min est grand, ce qui permet de rejeter fortement les cases avec un grand min.
         """
 
         if not self.plateau.case_existe(i, j):
             raise ValueError("La case n'existe pas")
         
+        # si la case est un invite, on ne sera pas vu
         if self.plateau.get_case(i, j).contenu[0] == "invite":
             return 0
         
         if self.no_sat:
             use_sat = False
         
+        # self.penalites contient le nombre de gardes par lesquels on est vu pour une case donnee
+        # si sa valeur n'est pas False, alors on connait deja la valeur, min = max = self.penalites[i][j]
         if self.penalites[i][j] is not False:
             m = self.penalites[i][j]
-            # return (1 + m)**2 + (m)
             return (4 * m) + m
 
         gardes_potentiels = self.plateau.voisins_gardes(i, j)
+
+        # "direction" : [min, max]
         visible_depuis = {"gauche": [0, 0], "droite": [0, 0], "haut": [0, 0], "bas": [0, 0]}
 
         for direction in ['gauche', 'droite', 'haut', 'bas']:
             voisins_direction = gardes_potentiels[direction]
             for i_garde, j_garde in voisins_direction:
 
-                # cas "on est sur" qu'un garde nous voit
+                # cas "on est sur" qu'un garde nous voit, mettre min et max a 1 pour la direction
                 if self.plateau.get_case(i_garde, j_garde).contenu[0] == "garde" and self.plateau.get_case(i_garde, j_garde).contenu[1] == direction:
                     visible_depuis[direction][0] = 1
                     visible_depuis[direction][1] = 1
                     break
 
-                # cas "il est possible" qu'un garde nous voit
+                # cas "il est possible" qu'un garde nous voit, mettre max a 1 pour la direction
                 if not self.plateau.get_case(i_garde, j_garde).proven_not_guard:
-                    if self.plateau.get_case(i_garde, j_garde).contenu[0] == "inconnu":
+                    if not self.plateau.get_case(i_garde, j_garde).contenu_connu():
+                        
+                        # avant d'augmenter max, on essaye de prouver que la case n'est pas un garde.
+                        # Pour cela on regarde s'il n'existe pas de modele ou la case est un garde
                         if use_sat:
                             clauses_temp = self.clauses.copy()
                             self.clauses.append([self.plateau.cell_to_var(i_garde, j_garde, "garde")])
@@ -288,47 +396,67 @@ class Game:
                             else:
                                 self.plateau.get_case(i_garde, j_garde).proven_not_guard = True
                             self.clauses = clauses_temp.copy()
+                        # Si on n'utilise pas sat, on ne cherche pas a prouver que la case n'est pas un garde
+                        # et on incremente max dans tous les cas
                         else:
                             visible_depuis[direction][1] = 1
+
+        # chaque visible_depuis[direction] est un tableau [min, max], ou min et max sont compris entre 0 et 1
+        # car on ne peut etre vu qu'une fois par direction
 
         min = sum([visible_depuis[direction][0] for direction in visible_depuis])
         max = sum([visible_depuis[direction][1] for direction in visible_depuis])
 
-        if self.plateau.get_case(i, j).contenu[0] == "inconnu": # si la case est un invite, on ne sera pas vu
+        # si la case est un invite, on ne sera pas vu, si son contenu est inconnu, on ne peut pas savoir
+        if not self.plateau.get_case(i, j).contenu_connu():
             min = 0
 
-        # return (1 + min)**2 + (max)
         return (4 * min) + max
 
 
     def update_hitman(self):
         """
-        Met a jour la position et direction de hitman sur la carte
+        Met a jour la position et direction de hitman sur le plateau
         """
         i_act, j_act = self.pos_actuelle()
         direction_act = self.direction_actuelle()
 
         self.plateau.pos_hitman = (i_act, j_act, direction_act)
 
-    def tourner(self, i_objectif, j_objectif):
+    def tourner(self, i_objectif: int, j_objectif: int)-> bool:
         """
         Tourne jusqu'a ce que la case (i_objectif, j_objectif) soit visible
         Si la case est deja en face, ne fait rien
+
+        Si hitman est en train d'etre vu par un garde, alors on regarde si on peut avancer et
+        s'il existe un point de vue moins risque pour voir la case objectif. Si oui, on avance
+        pour eviter de prendre des penalites supplementaires. La fonction return True si on a avance,
+        False sinon.
+
+        Si on doit se retourner, et donc tourner deux fois, la methode calcule dans quel sens il
+        est le plus interessant de se retourner, en fonction du nombre de cases inconnue de chaque cote
         """
 
         if not self.plateau.case_existe(i_objectif, j_objectif):
             raise ValueError("La case n'existe pas")
 
         i_act, j_act = self.pos_actuelle()
-        if len(self.status['vision']) > 0:
+
+        # si la case est hors de portee meme en se tournant
+        directions = ("haut", "droite", "bas", "gauche")
+        if self.plateau.distance_manhattan(i_act, j_act, i_objectif, j_objectif) > 3:
+            raise ValueError("La case est trop loin")
+
+        if len(self.status['vision']) > 0: # s'il y a une case devant
             case_devant = self.status['vision'][0][0]
-            if not self.plateau.get_case(case_devant[0], case_devant[1]).case_interdite():
-                if self.penalites[i_act][j_act] > 0:
+            if not self.plateau.get_case(case_devant[0], case_devant[1]).case_interdite(): # si la case devant n'est pas interdite
+                if self.penalites[i_act][j_act] > 0: # si on est en train d'etre vu par au moins un garde
                     autres_pdv = []
                     directions = ("haut", "droite", "bas", "gauche")
-                    for direction in directions:
+                    for direction in directions: # autres points de vue depuis lesquels on pourrait voir notre objectif
                         autres_pdv += self.plateau.cases_voir(i_objectif, j_objectif, direction)
                     
+                    # s'il existe un meilleur point de vue, on avance, cela ne vaut pas le coup de se tourner vers l'objectif
                     if self.risque(case_devant[0], case_devant[1], use_sat=True) < self.risque(i_act, j_act, use_sat=True):
                         for i, j in autres_pdv:
                             if self.penalites[i][j] == 0 or self.penalites[i][j] is False:
@@ -337,10 +465,7 @@ class Game:
                                 print(self.plateau)
                                 return True
 
-        directions = ("haut", "droite", "bas", "gauche")
-        if self.plateau.distance_manhattan(i_act, j_act, i_objectif, j_objectif) > 3:
-            raise ValueError("La case est trop loin")
-
+        # on determine dans quel sens on se tourne
         if i_objectif == i_act:
             if j_objectif > j_act:
                 direction = "haut"
@@ -357,17 +482,18 @@ class Game:
         index = directions.index(direction)
         index_act = directions.index(self.direction_actuelle())
 
+        # sens des aiguilles d'une montre
         if index == (index_act + 1) % 4:
             self.status = self.hitman.turn_clockwise()
             self.update_knowledge()
             print(self.plateau)
+        # sens inverse des aiguilles d'une montre
         elif index == (index_act + 3) % 4:
             self.status = self.hitman.turn_anti_clockwise()
             self.update_knowledge()
             print(self.plateau)
+        # On tourne 2 fois, on regarde dans quel sens il sera le plus informatif de tourner
         elif index == (index_act + 2) % 4:
-            # On tourne 2 fois, on regarde dans quel sens
-            # il sera le plus informatif de tourner
             if direction in {"haut", "bas"}:
                 nb_cases_inconnues_gauche = len([(i, j) for i, j in self.plateau.cases_voir(i_act, j_act, "gauche") if not self.plateau.get_case(i, j).contenu_connu()])
                 nb_cases_inconnues_droite = len([(i, j) for i, j in self.plateau.cases_voir(i_act, j_act, "droite") if not self.plateau.get_case(i, j).contenu_connu()])
@@ -431,25 +557,44 @@ class Game:
         return False
         
 
-    def satisfiable(self):
+    def satisfiable(self)-> bool:
         """
         Renvoie True si les clauses sont satisfiables, False sinon
         """
-        solve(self.clauses, nb_var=self.nb_variables)
+        solve(self.clauses, nb_var=self.nb_variables) #completer, return
 
     def update_knowledge(self):
         """
         Met a jour le plateau et la base de clauses avec les informations obtenues
 
-        Pour la vue, on met a jour notre modele de plateau et on ajoute des clauses.
+        Il y a trois facons d'obtenir des informations :
+
+        I. La vue
+            - on met a jour notre modele de plateau
+            - on ajoute des clauses
+
+        II. l'ecoute
+            - on ajoute simplement des clauses. Il y a "hear" cases qui contiennent
+                un garde ou un invite le fait qu'un garde et un invite ne soient pas
+                sur la meme case est deja pris en compte dans les clauses d'initialisation
         
-        Pour l'ecoute, on ajoute simplement des clauses. Il y a "hear" cases qui contiennent
-        un garde ou un invite le fait qu'un garde et un invite ne soient pas
-        sur la meme case est deja pris en compte dans les clauses d'initialisation
+        III. les penalites
+            On peut deduire grace au status actuel de hitman combien de gardes sont en train de nous voir
+            pour la case actuelle. En effet on prend 5 penalites par garde qui nous voit, et on connait
+            le nombre de penalites que l'on avait avant de faire notre derniere action.
+            L'ecart entre les deux devrait etre : 1 + (nb_gardes_vus * 5).
+            On connait donc le nombre de gardes qui nous voient pour les cases deja visitees. On extrait
+            de ceci deux informations :
+                - le nombre de gardes qui nous voient pour la case actuelle, self.penalties[i_act][j_act],
+                    ce qui permet d'affiner le calcul du risque
+                - si on est vu par n gardes et qu'il y a n cases inconnues ou des gardes peuvent nous voir,
+                    on peut deduire que ces cases contiennent des gardes qui regardent vers hitman
+
 
         On met egalement a jour la position et la direction de hitman sur la carte
         """
 
+        # permet de ralentir l'affichage pour mieux voir les etapes si cela va trop vite
         if self.temporisation:
             time.sleep(0.25)
 
@@ -492,12 +637,12 @@ class Game:
                                         self.attente.remove(pair)
 
                             else: # len(voisins_gardes_dict[direction]) == 2:
+                                # si il y a deux cases contenant des cartes ayant pu nous voir dans cette direction,
+                                # une des deux est un garde qui nous regarde. Si on en trouve une, on pourra en deduire l'autre 
                                 case1, case2 = voisins_gardes_dict[direction]
                                 self.attente.append(((case1[0], case1[1], ("garde", direction)), (case2[0], case2[1], ("garde", direction))))
 
-
-
-        self.old_penalty = self.status['penalties']    
+        self.old_penalty = self.status['penalties'] # mise a jour de la penalite actuelle
 
         # vision
         ## plateau
@@ -505,20 +650,20 @@ class Game:
             pos, contenu = case
             i, j = pos
             if not self.plateau.get_case(i, j).contenu_connu():
-                self.plateau.set_case(i, j, self.dict_cases[contenu])
+                self.plateau.set_case(i, j, self._dict_cases[contenu])
                 
                 for pair in self.attente:
                     for direction in {"haut", "droite", "bas", "gauche"}:
                         if (i, j, ("garde", direction)) in pair:
-                            if self.dict_cases[contenu] != ("garde", direction):
+                            if self._dict_cases[contenu] != ("garde", direction):
                                 other_item = pair[0] if pair[0] != (i, j, ("garde", direction)) else pair[1]
                                 self.plateau.set_case(other_item[0], other_item[1], other_item[2])
                             self.attente.remove(pair)
 
 
                 ## clauses
-                if self.dict_cases[contenu][0] in {"invite", "garde"}:
-                    self.clauses.append([self.plateau.cell_to_var(i, j, self.dict_cases[contenu][0])])
+                if self._dict_cases[contenu][0] in {"invite", "garde"}:
+                    self.clauses.append([self.plateau.cell_to_var(i, j, self._dict_cases[contenu][0])])
                 else:
                     self.clauses.append([-self.plateau.cell_to_var(i, j, "invite")])
                     self.clauses.append([-self.plateau.cell_to_var(i, j, "garde")])
@@ -539,8 +684,9 @@ class Game:
 
     def prochain_objectif(self):
         """
-        Renvoie les coordonnees de la prochaine case a explorer, c'est a dire la case la plus proche
-        qui n'a pas encore ete exploree
+        Renvoie les coordonnees de la prochaine case a explorer en fonction de 
+        l'heuristique "penalite minimale", on choisit la case inconnue avec la plus petite penalite
+        de deplacement par rapport a nous.
         """
         if self.plateau is None:
             raise ValueError("Le jeu n'a pas ete initialise")
@@ -549,26 +695,26 @@ class Game:
         i, j = self.pos_actuelle()
         m, n = self.plateau.infos_plateau()
 
+        i_min, j_min = None, None
+        penalite_min = float("inf")
+
         penalites_min = self.penalite_minimale(i, j)
 
         # on recupere les cases candidates
-        cases_candidates = []
         for i2 in range(m):
             for j2 in range(n):
                 if i2 == i and j2 == j:
                     continue
                 if self.plateau.get_case(i2, j2).contenu_connu():
                     continue
-                # distance = self.plateau.distance_minimale(i, j, i2, j2)#completer
-                distance = penalites_min[i2][j2]
-                cases_candidates.append((i2, j2, distance))
-        
-        # on trie les cases candidates par distance
-        cases_candidates.sort(key=lambda x: x[2])
+                penalite = penalites_min[i2][j2]
+                if penalite < penalite_min:
+                    penalite_min = penalite
+                    i_min, j_min = i2, j2
 
         # on renvoie la premiere case qui n'a pas encore ete exploree
-        if cases_candidates != []:
-            return cases_candidates[0][0], cases_candidates[0][1]
+        if i_min is not None and j_min is not None:
+            return i_min, j_min
             
         # si toutes les cases ont ete explorees, on renvoie False
         return False
@@ -577,6 +723,9 @@ class Game:
 
 
 g = Game()
+methodes = [m for m in dir(g) if callable(getattr(g, m)) and not m.startswith("__")]
 
-g.phase_1(no_sat=True, temporisation=True)
+for methode in methodes:
+    print(methode)
+# g.phase_1(no_sat=True, temporisation=False)
 

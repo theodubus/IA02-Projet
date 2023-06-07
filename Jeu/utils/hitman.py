@@ -1,5 +1,5 @@
-__author__ = "Sylvain Lagrue, and Hénoïk Willot"
-__copyright__ = "Copyright 2023, Université de technologie de Compiègne"
+__author__ = "Sylvain Lagrue, and Henoïk Willot"
+__copyright__ = "Copyright 2023, Universite de technologie de Compiegne"
 __license__ = "LGPL-3.0"
 __version__ = "0.4.0"
 __maintainer__ = "Sylvain Lagrue"

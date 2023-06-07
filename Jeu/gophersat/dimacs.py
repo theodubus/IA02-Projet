@@ -37,6 +37,6 @@ def solve(clauses, nb_var):
     dimacs = clauses_to_dimacs(clauses, nb_var)
     write_dimacs_file(dimacs, "hitman.cnf")
 
-    satisfiable, result = exec_gophersat("hitman.cnf")
+    satisfiable, _ = exec_gophersat("hitman.cnf")
 
     return satisfiable

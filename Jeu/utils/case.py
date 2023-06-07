@@ -1,12 +1,17 @@
+from typing import Tuple
+
 class Case:
     """
     Classe qui represente une case du plateau
 
     Une case est caracterisee par :
         - son contenu : tuple (element, direction), avec direction = None si l'element n'est pas une personne
+        - proven_not_guard : booleen qui indique si la case a deja ete prouvee comme n'etant pas un garde par gophersat
 
     Les methodes utiles sont :
         - contenu : getter et setter pour le contenu de la case, permettant de verifier la validite du contenu
+        - __str__ : permet d'afficher le contenu de la case avec print() pour pouvoir etre affichee dans le plateau
+        - proven_not_guard : getter et setter pour proven_not_guard, permettant de verifier la validite de la valeur 
         - case_interdite : renvoie False si hitman a le droit d'etre sur cette case, True sinon ou si le contenu de la case est inconnu
         - contenu_connu : renvoie True si le contenu de la case est connu, False sinon (voir plus bas)
     """
@@ -49,21 +54,21 @@ class Case:
         return chaine
     
     @property
-    def proven_not_guard(self):
+    def proven_not_guard(self) -> bool:
         return self._proven_not_guard
     
     @proven_not_guard.setter
-    def proven_not_guard(self, value):
+    def proven_not_guard(self, value: bool):
         if value is not True:
             raise ValueError("La valeur ne peut que passer de False a True")
         self._proven_not_guard = value
         
     @property
-    def contenu(self):
+    def contenu(self) -> Tuple[str, str]:
         return self._contenu
 
     @contenu.setter
-    def contenu(self, nouveau_contenu):
+    def contenu(self, nouveau_contenu : Tuple[str, str]):
         """
         Modifie le contenu de la case
         :param nouveau_contenu:
@@ -99,14 +104,14 @@ class Case:
 
         self._contenu = (contenu, direction)
 
-    def case_interdite(self):
+    def case_interdite(self) -> bool:
         """
         Renvoie False si hitman a le droit d'etre sur cette case
         Renvoie True sinon ou si le contenu de la case est inconnu
         """
         return self.contenu[0] in {"mur", "garde"}
     
-    def contenu_connu(self):
+    def contenu_connu(self) -> bool:
         """
         Renvoie True si le contenu de la case est connu, False sinon
         """

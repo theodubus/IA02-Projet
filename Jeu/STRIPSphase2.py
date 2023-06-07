@@ -217,12 +217,19 @@ def do_fn(action, etat, rules):
 #=========================================================
 
 def succ(etat, rules):
-    dic = {}
-    for nom_action in rules.actions: 
+    dic = {}  # Crée un dictionnaire vide pour stocker les états successeurs
+    for nom_action in rules.actions:
+        # Pour chaque nom d'action défini dans les règles
         for action in rules.actions[nom_action]:
-            if do_fn(action, etat, rules) != None:
+            # Pour chaque action correspondant à ce nom d'action dans les règles
+
+            # Vérifie si l'application de l'action sur l'état génère un nouvel état valide
+            if do_fn(action, etat, rules) is not None:
                 dic[do_fn(action, etat, rules)] = nom_action
-    return dic
+                # Ajoute le nouvel état à la clé et associe le nom de l'action au dictionnaire
+                
+    return dic  # Renvoie le dictionnaire des états successeurs avec les noms d'actions correspondants
+
 
 def goals(etat, rules):
     return etat.position == (0, 0) and etat.cible_tuee == True
@@ -238,14 +245,18 @@ def remove_tail(liste):
     return liste.pop(), liste
 def recherche_non_informe(etat_s0, goals, succ, remove_head, insert_tail):
     liste_etats = [etat_s0]
-    save = {etat_s0: None}
+    save = {etat_s0: None} # le dictionnaire pour enregistrer les etats visites et leurs predecesseurs
     while liste_etats:
         etat, liste_etats = remove_head(liste_etats)
+        # Retire l'état en tête de liste et met à jour la liste
         for etat_suivant, nom_action in succ(etat, map_rules).items():
+        # Pour chaque etat successeur et nom d'action correspondant
             if etat_suivant not in save:
+            # Si l'etat successeur n'a pas encore ete visite
                 save[etat_suivant] = (etat, nom_action)
-                if goals(etat_suivant, map_rules):
-                    return etat_suivant, save
+                # Enregistre l'etat successeur et son predecesseur
+                if goals(etat_suivant, map_rules): # Si l'etat successeur correspond au but recherche
+                    return etat_suivant, save # Renvoie l'etat successeur et le dictionnaire save
                 insert_tail(etat_suivant, liste_etats)
     return None, save
 
@@ -277,61 +288,73 @@ def est_vu_par_garde(position, gardes):
                         return True
     return False
 # ============================
-# Code pour l'implementation de A*
+# Code pour l'implementation d'algo recherche informe
 
 def calculer_heuristique(etat_suivant, nom_action):
     vuParGarde = False
     if est_vu_par_garde(etat_suivant.position, map_rules.gardes):
         vuParGarde = True
     if nom_action == "avancer":
-        if vuParGarde: return 6
+        if vuParGarde: return -6
     elif nom_action == "tourner_horaire":
-        if vuParGarde: return 6
+        if vuParGarde: return -6
     elif nom_action == "tourner_antihoraire":
-        if vuParGarde: return 6
+        if vuParGarde: return -6
     elif nom_action == "neutraliser_garde" :
-        if vuParGarde: return 100
-        return 20
+        if vuParGarde: return -100
+        return -20
     elif nom_action == "prendre_costume" :
-        if vuParGarde: return 100
+        if vuParGarde: return -100
     elif nom_action == "tuer_cible":
-        if vuParGarde: return 100
-    return 1
+        if vuParGarde: return -100
+    return -1
 
-def recherche_a_etoile(etat_init, goals, succ):
-    queue = PriorityQueue()
-    queue.put((0, etat_init))
-    save = {etat_init: None}
+def recherche_informe(etat_init, goals, succ):
+    queue = PriorityQueue()  # Crée une file de priorité
+    queue.put((0, etat_init))  # Ajoute l'état initial avec une priorité de 0 à la file
+    save = {etat_init: None}  # Dictionnaire pour enregistrer les états visités et leurs prédécesseurs
     
-    while not queue.empty():
-        _, etat = queue.get()
+    while not queue.empty():  # Tant que la file de priorité n'est pas vide
+        _, etat = queue.get()  # Récupère l'état avec la plus haute priorité de la file
+        # on traite alors la meilleure action
         
         if goals(etat, map_rules):
-            return etat, save
+            # Si l'état correspond à un objectif recherché
+            return etat, save  
         
         for etat_suivant, nom_action in succ(etat, map_rules).items():
+            # Pour chaque état successeur et nom d'action correspondant
+            
             if etat_suivant not in save:
-                save[etat_suivant] = (etat, nom_action)
+                # Si l'état successeur n'a pas encore été visité
+                save[etat_suivant] = (etat, nom_action)  # Enregistre l'état successeur et son prédécesseur
+                
                 cout_action = calculer_heuristique(etat_suivant, nom_action)
+                # Calcule le coût heuristique de l'action successeur
+                
                 queue.put((cout_action, etat_suivant))
-    
-    return None, save
+                # Ajoute l'état successeur à la file de priorité avec le coût heuristique comme priorité
+                
+    return None, save  # Aucun objectif trouvé, renvoie None et le dictionnaire save
+
 
 # ==========================
 
 #  Choisir un algo de recherche:
 
 # dernier_etat, save = recherche_non_informe(etat_s0, goals, succ, remove_head, insert_tail)
-dernier_etat, save = recherche_a_etoile(etat_s0, goals, succ)
+dernier_etat, save = recherche_informe(etat_s0, goals, succ)
 
 def dict2path(etat, dic):
-    liste = [(etat, None)]
+    liste = [(etat, None)]  # Liste représentant l'état initial
     while dic[etat] is not None:
-        parent, action = dic[etat]
-        liste.append((parent, action))
-        etat = parent
-    liste.reverse()
-    return liste
+        # Tant que le prédécesseur de l'état actuel n'est pas None dans le dictionnaire
+        parent, action = dic[etat]  # Récupère le prédécesseur et l'action menant à l'état actuel
+        liste.append((parent, action))  
+        etat = parent  # Met à jour l'état actuel avec le prédécesseur pour continuer la remontée
+    liste.reverse()  # Inverse l'ordre des éléments de la liste pour obtenir le chemin complet du début à l'état
+    return liste  # Renvoie la liste représentant le chemin complet
+
 
 plan = "->".join([action for etat, action in dict2path(dernier_etat, save) if action])
 

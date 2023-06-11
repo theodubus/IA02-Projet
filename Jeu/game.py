@@ -4,7 +4,7 @@ from utils.hitman import HC, HitmanReferee
 from gophersat.dimacs import solve
 import time
 import heapq
-from typing import Tuple, List, Dict
+from typing import Tuple, List, Dict, Set
 
 
 
@@ -22,9 +22,9 @@ class Game:
         - nb_variables : nombre de variables dans la base de clauses
         - attente : liste de couples ou l'on sait pour chaque couple qu'au moins une des deux cases est un garde (voir plus bas)
         - temporisation : booleen qui indique si on utilise la temporisation ou non (pour faire les affichages plus lentement)
-        - no_sat : booleen qui indique si on utilise sat pour calculer le risque ou non (pour faire les affichages plus lentement) #completer
         - _dict_cases : dictionnaire qui permet de convertir un contenu de case en un tuple (element, direction)
         - _dict_directions : dictionnaire qui permet de convertir une direction en un chaine de caracteres
+        - _sat_mode : chaine de caracteres qui indique le mode de calcul du risque (voir plus bas)
 
     
     Les methodes utiles sont :
@@ -52,7 +52,11 @@ class Game:
         self.nb_variables = None
         self.attente = []
         self.temporisation = True
-        self.no_sat = False
+        self._sat_mode = "auto"
+        self._history_etats = set()
+        self._history_positions = set()
+        self.n_invite_inconnu_restants = None
+        self.n_garde_inconnu_restants = None
         self._dict_cases = {
             HC.EMPTY : ("vide", None),
             HC.WALL : ("mur", None),
@@ -74,7 +78,16 @@ class Game:
             HC.S : "bas",
             HC.W : "gauche"
         }
-
+    
+    @property
+    def sat_mode(self):
+        return self._sat_mode
+    
+    @sat_mode.setter
+    def sat_mode(self, mode: str):
+        if mode not in ("auto", "sat", "no_sat"):
+            raise ValueError("Le mode doit etre 'auto', 'sat' ou 'no_sat'")
+        self._sat_mode = mode
 
     def pos_actuelle(self)-> Tuple[int, int]:
         """
@@ -95,7 +108,7 @@ class Game:
         return self._dict_directions[self.status['orientation']]
             
 
-    def phase_1(self, temporisation: bool = True, no_sat: bool = False):
+    def phase_1(self, temporisation: bool = True, sat_mode: str = "auto"):
         """
         Implementation de la phase 1 du jeu. Le deroule est le suivant :
 
@@ -121,7 +134,7 @@ class Game:
         n_invites = self.status['civil_count']
         n_gardes = self.status['guard_count']
         self.temporisation = temporisation
-        self.no_sat = no_sat
+        self.sat_mode = sat_mode
 
         # recuperation des dimensions du plateau et des variables cnf
         m, n = self.plateau.infos_plateau()
@@ -130,8 +143,18 @@ class Game:
         self.nb_variables = len(variables_invites) + len(variables_gardes)
 
         # On ajoute les clauses initiales
-        self.clauses += exactly_n(n_invites, variables_invites) # clauses pour avoir n_invites invites
-        self.clauses += exactly_n(n_gardes, variables_gardes) # clauses pour avoir n_gardes gardes
+        
+        # 1. clauses pour le nombre d'invites et de gardes
+        # # Les clauses pour dire qu'il y a n_invites invites et n_gardes gardes sur le plateau sont trop
+        # # nombreuses et explosent si on aggrandi la carte, on ne les ajoute pas et on gere le nombre d'invites
+        # # et de gardes avec le code
+        # # self.clauses += exactly_n(n_invites, variables_invites) # clauses pour avoir n_invites invites
+        # # self.clauses += exactly_n(n_gardes, variables_gardes) # clauses pour avoir n_gardes gardes
+        self.n_invite_inconnu_restants = n_invites
+        self.n_garde_inconnu_restants = n_gardes
+
+        # 2. clauses pour ne pas avoir d'invite et de garde sur la meme case
+        ## cette condition produit n * m clauses, ce qui est raisonnable meme pour de grandes cartes
         self.clauses += unique(variables_invites, variables_gardes) # clauses pour ne pas avoir d'invite et de garde sur la meme case
 
         print(self.plateau)
@@ -141,9 +164,11 @@ class Game:
         print(self.plateau)
 
         # Deroulement
-        while self.prochain_objectif():
-            i, j = self.prochain_objectif()
+        prochain_objectif = self.prochain_objectif()
+        while prochain_objectif:
+            i, j = prochain_objectif
             self.explore(i, j)
+            prochain_objectif = self.prochain_objectif()
 
         # Fin
         if self.hitman.send_content(self.plateau.board_to_dict()):
@@ -151,6 +176,7 @@ class Game:
         else:
             print("Perdu !")
 
+        # self.status = self.hitman.end_phase1()
 
 
     def explore(self, i_objectif: int, j_objectif: int):
@@ -239,17 +265,20 @@ class Game:
 
         # voisin le plus proche
         for i_target, j_target in targets:
-            penalite_min_tableau = self.penalite_minimale(i_target, j_target, sat_coordinates=voisins_actuels)
+            penalite_min_tableau = self.penalite_minimale(i_target, j_target, cases_target=set(voisins_actuels))
             for i_voisin, j_voisin in voisins_actuels:
                 penal = penalite_min_tableau[i_voisin][j_voisin]
                 
                 if penal < penal_min:
                     penal_min = penal
                     voisin_min = (i_voisin, j_voisin)
+                elif penal == penal_min:
+                    if self.plateau.distance_minimale(i_act, j_act, i_voisin, j_voisin) < self.plateau.distance_minimale(i_act, j_act, voisin_min[0], voisin_min[1]):
+                        voisin_min = (i_voisin, j_voisin)
 
         return voisin_min
     
-    def penalite_minimale(self, i: int, j: int, sat_coordinates: List[Tuple[int, int]] = []) -> List[List[int]]:
+    def penalite_minimale(self, i: int, j: int, cases_target: Set[Tuple[int, int]] = set()) -> List[List[int]]:
         """
         Methode definissant l'heuristique d'exploration pour la phase 1
         Le retourn est un tableau m*n ou contient la penalite du meilleur chemin 
@@ -269,25 +298,28 @@ class Game:
                 - Sinon, on met a jour la penalite de la case correspondante (penalite minimale potentielle devient penalite minimale)
                     - On ajoute dans le tas les voisins de la case correspondante avec leur penalite minimale potentielle, egales a :
                         la penalite minimale de la case correspondante + 1 + le risque du voisin
-                - On recommence jusqu'a ce que le tas soit vide
+                - On recommence jusqu'a ce que le tas soit vide ou qu'on ait traite toutes les cases que l'on voulait
             III. Fin
                 - On renvoie le tableau des penalites minimales
 
         En procedant de cette maniere, on rajoute a chaque iteration la nieme case de penalite
         minimale pour aller a la case objectif
 
-        sat_coordinates est une liste de coordonnees pour lesquelles on utilisera SAT pour calculer le risque.
-        Quand cette liste est non vide, elle correspond aux voisins de la case actuelle.
+        cases_target est une liste de coordonnees pour lesquelles veut recuperer les penalites.
+        Si cette liste est vide, on recupere les penalites pour tout le plateau, sinon, on s'arrete
+        des qu'on a les cases souhaitees. On utilisera SAT pour calculer le risque de ces cases afin
+        d'affiner son calcul. Quand cette liste est non vide, elle correspond aux voisins de la case actuelle.
 
-        On ne peut pas se permettre d'utiliser sat pour calculer le risque de toutes les cases car cela prendrait trop de temps.
+        Utiliser SAT pour calculer le risque de toutes les cases n'est pas utile car la majorite des cases
+        traitees sont inconnues et entourees de cases inconnues (et que l'on n'a pas non plus entendues)
         """
         m, n = self.plateau.infos_plateau()
         cases_traitees = set()
-        cases_a_traiter = []
+        tas_cases_a_traiter = []
 
         penalites = [[float("inf") for _ in range(n)] for _ in range(m)]
 
-        if (i, j) in sat_coordinates:
+        if (i, j) in cases_target:
             penalites[i][j] = self.risque(i, j, use_sat=True)
         else:
             penalites[i][j] = self.risque(i, j)
@@ -296,14 +328,14 @@ class Game:
         for i_voisin, j_voisin in self.plateau.voisins(i, j):
             if self.plateau.get_case(i_voisin, j_voisin).case_interdite():
                 continue
-            if (i_voisin, j_voisin) in sat_coordinates:
+            if (i_voisin, j_voisin) in cases_target:
                 penalite = penalites[i][j] + 1 + self.risque(i_voisin, j_voisin, use_sat=True)
             else:
                 penalite = penalites[i][j] + 1 + self.risque(i_voisin, j_voisin)
-            heapq.heappush(cases_a_traiter, (penalite, i_voisin, j_voisin))
+            heapq.heappush(tas_cases_a_traiter, (penalite, i_voisin, j_voisin))
 
-        while cases_a_traiter != []:
-            penalite_act, i_act, j_act = heapq.heappop(cases_a_traiter)
+        while tas_cases_a_traiter != [] and (cases_target == set() or not cases_target.issubset(cases_traitees)):
+            penalite_act, i_act, j_act = heapq.heappop(tas_cases_a_traiter)
             if (i_act, j_act) in cases_traitees:
                 continue
             cases_traitees.add((i_act, j_act))
@@ -312,11 +344,11 @@ class Game:
             for i_voisin, j_voisin in self.plateau.voisins(i_act, j_act):
                 if self.plateau.get_case(i_voisin, j_voisin).case_interdite():
                     continue
-                if (i_voisin, j_voisin) in sat_coordinates:
+                if (i_voisin, j_voisin) in cases_target:
                     penalite = penalites[i_act][j_act] + 1 + self.risque(i_voisin, j_voisin, use_sat=True)
                 else:
                     penalite = penalites[i_act][j_act] + 1 + self.risque(i_voisin, j_voisin)
-                heapq.heappush(cases_a_traiter, (penalite, i_voisin, j_voisin))
+                heapq.heappush(tas_cases_a_traiter, (penalite, i_voisin, j_voisin))
 
         return penalites
 
@@ -351,15 +383,17 @@ class Game:
         min est grand, ce qui permet de rejeter fortement les cases avec un grand min.
         """
 
+        if self.sat_mode == "no_sat":
+            use_sat = False
+        elif self.sat_mode == "sat":
+            use_sat = True
+
         if not self.plateau.case_existe(i, j):
             raise ValueError("La case n'existe pas")
         
         # si la case est un invite, on ne sera pas vu
         if self.plateau.get_case(i, j).contenu[0] == "invite":
             return 0
-        
-        if self.no_sat:
-            use_sat = False
         
         # self.penalites contient le nombre de gardes par lesquels on est vu pour une case donnee
         # si sa valeur n'est pas False, alors on connait deja la valeur, min = max = self.penalites[i][j]
@@ -395,6 +429,7 @@ class Game:
                                 visible_depuis[direction][1] = 1
                             else:
                                 self.plateau.get_case(i_garde, j_garde).proven_not_guard = True
+                                clauses_temp.append([-self.plateau.cell_to_var(i_garde, j_garde, "garde")])
                             self.clauses = clauses_temp.copy()
                         # Si on n'utilise pas sat, on ne cherche pas a prouver que la case n'est pas un garde
                         # et on incremente max dans tous les cas
@@ -408,7 +443,7 @@ class Game:
         max = sum([visible_depuis[direction][1] for direction in visible_depuis])
 
         # si la case est un invite, on ne sera pas vu, si son contenu est inconnu, on ne peut pas savoir
-        if not self.plateau.get_case(i, j).contenu_connu():
+        if not self.plateau.get_case(i, j).contenu_connu() and self.n_invite_inconnu_restants > 0:
             min = 0
 
         return (4 * min) + max
@@ -561,7 +596,7 @@ class Game:
         """
         Renvoie True si les clauses sont satisfiables, False sinon
         """
-        solve(self.clauses, nb_var=self.nb_variables) #completer, return
+        return solve(self.clauses, nb_var=self.nb_variables)
 
     def update_knowledge(self):
         """
@@ -592,6 +627,12 @@ class Game:
 
 
         On met egalement a jour la position et la direction de hitman sur la carte
+
+        - premier_passage sert a savoir si on est deja passe par la case actuelle (i_act, j_act),
+            et voir s'il utile de proceder au traitement pour les penalites et l'ecoute
+
+        - premiere_fois_etat sert a savoir si on a deja ete dans l'etat (i_act, j_act, direction_act)
+            et ainsi savoir s'il est utile de proceder au traitement pour la vue
         """
 
         # permet de ralentir l'affichage pour mieux voir les etapes si cela va trop vite
@@ -603,10 +644,23 @@ class Game:
 
         vision = self.status['vision']
         hear = self.status['hear']
+        i_act, j_act = self.pos_actuelle()
+        direction_act = self.direction_actuelle()
+
+        if (i_act, j_act) in self._history_positions:
+            premier_passage = False
+            if (i_act, j_act, direction_act) in self._history_etats:
+                premiere_fois_etat = False
+            else:
+                self._history_etats.add((i_act, j_act, direction_act))
+                premiere_fois_etat = True
+        else:
+            self._history_positions.add((i_act, j_act))
+            premier_passage = True
+            premiere_fois_etat = True
 
         # penalites
-        i_act, j_act = self.pos_actuelle()
-        if self.penalites[i_act][j_act] is False:
+        if premier_passage:
             n_vu_par = (self.status['penalties'] - self.old_penalty) // 5
             self.penalites[i_act][j_act] = n_vu_par
 
@@ -631,6 +685,13 @@ class Game:
                                 case = voisins_gardes_dict[direction][0]
                                 if not self.plateau.get_case(case[0], case[1]).contenu_connu():
                                     self.plateau.set_case(case[0], case[1], ("garde", direction))
+                                    self.n_garde_inconnu_restants -= 1
+                                    if self.n_garde_inconnu_restants == 0:
+                                        m, n = self.plateau.infos_plateau()
+                                        for i_prove in range(m):
+                                            for j_prove in range(n):
+                                                if not self.plateau.get_case(i_prove, j_prove).contenu_connu():
+                                                    self.plateau.get_case(i_prove, j_prove).proven_not_guard = True
 
                                 for pair in self.attente:
                                     if (case[0], case[1], ("garde", direction)) in pair:
@@ -646,37 +707,76 @@ class Game:
 
         # vision
         ## plateau
-        for case in vision:
-            pos, contenu = case
-            i, j = pos
-            if not self.plateau.get_case(i, j).contenu_connu():
-                self.plateau.set_case(i, j, self._dict_cases[contenu])
-                
-                for pair in self.attente:
-                    for direction in {"haut", "droite", "bas", "gauche"}:
-                        if (i, j, ("garde", direction)) in pair:
-                            if self._dict_cases[contenu] != ("garde", direction):
-                                other_item = pair[0] if pair[0] != (i, j, ("garde", direction)) else pair[1]
-                                self.plateau.set_case(other_item[0], other_item[1], other_item[2])
-                            self.attente.remove(pair)
+        if premiere_fois_etat:
+            for case in vision:
+                pos, contenu = case
+                i, j = pos
+                if not self.plateau.get_case(i, j).contenu_connu():
+                    self.plateau.set_case(i, j, self._dict_cases[contenu])
+                    if self._dict_cases[contenu][0] == "invite":
+                        self.n_invite_inconnu_restants -= 1
+                        self.plateau.get_case(i, j).proven_not_guard = True
+
+                    elif self._dict_cases[contenu][0] == "garde":
+                        self.n_garde_inconnu_restants -= 1
+                        if self.n_garde_inconnu_restants == 0:
+                            m, n = self.plateau.infos_plateau()
+                            for i_prove in range(m):
+                                for j_prove in range(n):
+                                    if not self.plateau.get_case(i_prove, j_prove).contenu_connu():
+                                        self.plateau.get_case(i_prove, j_prove).proven_not_guard = True
+
+                    else:
+                        self.plateau.get_case(i, j).proven_not_guard = True
+                    
+                    for pair in self.attente:
+                        for direction in {"haut", "droite", "bas", "gauche"}:
+                            if (i, j, ("garde", direction)) in pair:
+                                if self._dict_cases[contenu] != ("garde", direction):
+                                    other_item = pair[0] if pair[0] != (i, j, ("garde", direction)) else pair[1]
+                                    self.plateau.set_case(other_item[0], other_item[1], other_item[2])
+                                    self.n_garde_inconnu_restants -= 1
+                                    if self.n_garde_inconnu_restants == 0:
+                                        m, n = self.plateau.infos_plateau()
+                                        for i_prove in range(m):
+                                            for j_prove in range(n):
+                                                if not self.plateau.get_case(i_prove, j_prove).contenu_connu():
+                                                    self.plateau.get_case(i_prove, j_prove).proven_not_guard = True
+                                self.attente.remove(pair)
 
 
-                ## clauses
-                if self._dict_cases[contenu][0] in {"invite", "garde"}:
-                    self.clauses.append([self.plateau.cell_to_var(i, j, self._dict_cases[contenu][0])])
-                else:
-                    self.clauses.append([-self.plateau.cell_to_var(i, j, "invite")])
-                    self.clauses.append([-self.plateau.cell_to_var(i, j, "garde")])
+                    ## clauses
+                    if self._dict_cases[contenu][0] in {"invite", "garde"}:
+                        self.clauses.append([self.plateau.cell_to_var(i, j, self._dict_cases[contenu][0])])
+                    else:
+                        self.clauses.append([-self.plateau.cell_to_var(i, j, "invite")])
+                        self.clauses.append([-self.plateau.cell_to_var(i, j, "garde")])
 
         # ouie
         ## clauses
-        cases_entendues = self.plateau.cases_entendre(i_act, j_act)
-        variables_invites_gardes = [self.plateau.cell_to_var(i, j, "invite") for i, j in cases_entendues] + [self.plateau.cell_to_var(i, j, "garde") for i, j in cases_entendues]
+        if premier_passage:
+            cases_entendues = self.plateau.cases_entendre(i_act, j_act) # toutes les cases qu'on peut entendre depuis la case actuelle
+            cases_inconnues_entendues = []
 
-        if hear == 5:
-            self.clauses += at_least_n(5, variables_invites_gardes)
-        else:
-            self.clauses += exactly_n(hear, variables_invites_gardes)
+            # pour alleger les clauses, si on connait le contenu d'une case et que ce n'est pas un invite/garde, on peut le retirer de la clause car on connait sont contenu
+            # si on connait son contenu mais que c'est un invite/garde et qu'on est pas en brouhaha, on peut retirer la case de la clause et decrementer le nombre de personnes
+            # entendues de 1
+            for c in cases_entendues:
+                if not self.plateau.get_case(c[0], c[1]).contenu_connu(): # case inconnue
+                    cases_inconnues_entendues.append(c)
+                elif hear < 5 and self.plateau.get_case(c[0], c[1]).contenu[0] in {"invite", "garde"}: # case connue et decompte de personne precis
+                    hear -= 1
+                elif hear == 5 and self.plateau.get_case(c[0], c[1]).contenu[0] in {"invite", "garde"}: # case connue mais decompte de personnes non precis
+                    cases_inconnues_entendues.append(c)
+                # else: # case connue et pas un invite/garde, on ne fait rien
+                #    pass
+
+            variables_invites_gardes = [self.plateau.cell_to_var(i, j, "invite") for i, j in cases_inconnues_entendues] + [self.plateau.cell_to_var(i, j, "garde") for i, j in cases_inconnues_entendues]
+
+            if hear == 5:
+                self.clauses += at_least_n(5, variables_invites_gardes)
+            else:
+                self.clauses += exactly_n(hear, variables_invites_gardes)
 
         # hitman
         self.update_hitman()
@@ -711,6 +811,9 @@ class Game:
                 if penalite < penalite_min:
                     penalite_min = penalite
                     i_min, j_min = i2, j2
+                elif penalite == penalite_min:
+                    if self.plateau.distance_minimale(i, j, i2, j2) < self.plateau.distance_minimale(i, j, i_min, j_min):
+                        i_min, j_min = i2, j2
 
         # on renvoie la premiere case qui n'a pas encore ete exploree
         if i_min is not None and j_min is not None:
@@ -723,9 +826,4 @@ class Game:
 
 
 g = Game()
-methodes = [m for m in dir(g) if callable(getattr(g, m)) and not m.startswith("__")]
-
-for methode in methodes:
-    print(methode)
-# g.phase_1(no_sat=True, temporisation=False)
-
+g.phase_1(temporisation=True, sat_mode="no_sat")

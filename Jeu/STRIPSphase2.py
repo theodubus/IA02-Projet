@@ -1,6 +1,24 @@
+"""
+
+
+
+
+
+CE FICHIER EST OBSOLETE
+LA PHASE 2 EST DANS game.py
+faites-moi savoir si tu veux que je mette la phase 2 dans un autre fichier
+
+
+
+
+
+
+
+
+"""
 from typing import FrozenSet
 from collections import namedtuple
-from utils.hitman import HC
+from utils.hitman import HC, HitmanReferee
 from queue import PriorityQueue
 
 Action = namedtuple("Action", ("name"))
@@ -64,71 +82,6 @@ world_example = [
     [HC.EMPTY, HC.EMPTY, HC.EMPTY, HC.EMPTY, HC.EMPTY, HC.EMPTY, HC.EMPTY],
     [HC.EMPTY, HC.EMPTY, HC.WALL, HC.WALL, HC.EMPTY, HC.PIANO_WIRE, HC.EMPTY],
 ]
-# à faire: fonction pour convertir cette variable "world_example" en "map_rules" en dessous:
-
-Garde = namedtuple("Garde", ("position", "direction"))
-gardes = {
-    "g1" : frozenset({Garde((4,5), "bas")}),
-    "g2" : frozenset({Garde((3,2), "droite")}),
-} 
-
-Predicat = namedtuple("Predicat", ("murs", "gardes", "invites", "corde", "costume", "cible", "actions"))  
-map_rules = Predicat(
-    murs=frozenset(
-        { 
-            # murs normaux
-            (2, 0),
-            (3, 0),
-            (0, 2),
-            (1, 2),
-            (1, 3),
-            (1, 4),
-            # murs en bas
-            (0, -1),
-            (1, -1),
-            (2, -1),
-            (3, -1),
-            (4, -1),
-            (5, -1),
-            (6, -1),
-            # murs en haut
-            (0, 6),
-            (1, 6),
-            (2, 6),
-            (3, 6),
-            (4, 6),
-            (5, 6),
-            (6, 6),
-            # murs a droite
-            (7, 0),
-            (7, 1),
-            (7, 2),
-            (7, 3),
-            (7, 4),
-            (7, 5),
-            # murs a gauche
-            (-1, 0),
-            (-1, 1),
-            (-1, 2),
-            (-1, 3),
-            (-1, 4),    
-            (-1, 5),
-        }
-    ),
-    gardes=gardes,
-    invites=frozenset(
-        { 
-            (5, 2),
-            (5, 3),
-            (6, 2),
-        }
-    ),
-    corde=((5,0)),
-    costume=((3,5)),
-    cible=((0,3)),
-    actions=actions,
-)
-
 
 # les fonctions:
 def avancer(position, direction):

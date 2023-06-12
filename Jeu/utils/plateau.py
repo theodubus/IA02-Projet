@@ -477,3 +477,39 @@ class Plateau:
                 break
 
         return voisins
+
+    def world_to_plateau(self, world_example: List[List[HC]]):
+        lignes = len(world_example)
+        colonnes = len(world_example[0])
+        for i in range(lignes):
+            for j in range(colonnes):
+                element = world_example[i][j]
+                i_inverse = lignes - i -1
+                case = self._plateau[j][i_inverse]
+
+                if element == HC.EMPTY:
+                    case.contenu = ("vide", None)
+                elif element == HC.WALL:
+                    case.contenu = ("mur", None)
+                elif element == HC.PIANO_WIRE:
+                    case.contenu = ("corde", None)
+                elif element == HC.SUIT:
+                    case.contenu = ("costume", None)
+                elif element == HC.GUARD_N:
+                    case.contenu = ("garde", "haut")
+                elif element == HC.GUARD_E:
+                    case.contenu = ("garde", "droite")
+                elif element == HC.GUARD_S:
+                    case.contenu = ("garde", "bas")
+                elif element == HC.GUARD_W:
+                    case.contenu = ("garde", "gauche")
+                elif element == HC.CIVIL_N:
+                    case.contenu = ("invite", "haut")
+                elif element == HC.CIVIL_E:
+                    case.contenu = ("invite", "droite")
+                elif element == HC.CIVIL_S:
+                    case.contenu = ("invite", "bas")
+                elif element == HC.CIVIL_W:
+                    case.contenu = ("invite", "gauche")
+                elif element == HC.TARGET:
+                    case.contenu = ("cible", None)

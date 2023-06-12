@@ -1,3 +1,4 @@
+from logging import raiseExceptions
 from utils.clauses_combin import *
 from utils.plateau import Plateau
 from utils.hitman import HC, HitmanReferee
@@ -6,6 +7,11 @@ import time
 import heapq
 from typing import Tuple, List, Dict, Set
 
+#Pour la phase 2:
+from typing import FrozenSet
+from collections import namedtuple
+from queue import PriorityQueue
+from copy import deepcopy
 
 
 class Game:
@@ -821,9 +827,356 @@ class Game:
             
         # si toutes les cases ont ete explorees, on renvoie False
         return False
+    
+    # ===================== Code pour la phase 2: ==========================================
+    def avancer(self, position, direction):
+        i, j = position
+        return {"droite": (i+1, j), "gauche": (i-1, j), "haut": (i, j+1), "bas": (i, j-1)}[direction]
+
+    def tourner_horaire(self, direction):
+        if direction == "gauche":
+            return "haut"
+        elif direction == "haut":
+            return "droite"
+        elif direction == "droite":
+            return "bas"
+        elif direction == "bas":
+            return "gauche"
+    
+    def tourner_antihoraire(self, direction):
+        if direction == "gauche":
+            return "bas"
+        elif direction == "haut":
+            return "gauche"
+        elif direction == "droite":
+            return "haut"
+        elif direction == "bas":
+            return "droite"
+    
+
+    def do_fn(self, action, etat):
+        # "Simuler" une action, utilisée dans la phase de planification
+
+        penalties_actuel = etat.penalties + 1 # +1 car cout de base d'une action
+        new_etat = None
+        contenu_sur_cette_case = self.plateau.get_case(etat.position[0], etat.position[1]).contenu[0]
+        # pour savoir le contenu de cette cas, genre "guard" ou "mur" etc.
+
+        if action.name == "move":
+            new_position = self.avancer(etat.position, etat.orientation)
+            if self.plateau.case_existe(new_position[0], new_position[1]):
+                new_contenu_sur_case = self.plateau.get_case(new_position[0], new_position[1]).contenu[0]
+                # pour savoir le contenu de cette cas, genre "guard" ou "mur" etc.
+                if new_contenu_sur_case!= "garde" and new_contenu_sur_case!= "mur":
+                    new_etat = etat._replace(position=new_position) 
+                    penalties_actuel += 5 * self.penalites[new_position[0]][new_position[1]]
+                    # self.penalites[i][j] retourne le nombre exact de gardes par lesquels on est vu pour chaque case
+                    # si self.penalites[new_position[0]][new_position[1]] == 0 alors on subit pas de penalites supplémentaires
+                    # dans le cas contraire, c'est égal à 5 * __seen_by_guard_num()
 
 
+        elif action.name == "turn_clockwise":
+            new_orientation = self.tourner_horaire(etat.orientation)
+            new_etat = etat._replace(orientation=new_orientation)
+        elif action.name == "turn_anti_clockwise":
+            new_orientation = self.tourner_antihoraire(etat.orientation)
+            new_etat = etat._replace(orientation=new_orientation)
+
+        elif action.name == "kill_target":
+            if etat.has_weapon and contenu_sur_cette_case == "cible":
+                new_etat = etat._replace(is_target_down=True)
+                penalties_actuel += 100 * self.penalites[new_etat.position[0]][new_etat.position[1]]
+                # self.penalites[i][j] retourne le nombre exact de gardes par lesquels on est vu pour chaque case
+                # si self.penalites[new_etat.position[0]][new_etat.position[1]] == 0 alors on subit pas de penalites supplémentaires
+                # dans le cas contraire, c'est égal à 100 * __seen_by_guard_num()
+                # reste a faire: __seen_by_civil_num()
+
+        elif action.name == "neutralize_guard":
+            if contenu_sur_cette_case == "guard":
+                nb_guard = etat.guard_count
+                new_etat = etat._replace(guard_count=nb_guard-1)
+                penalties_actuel += 20 # 20 car on vient de neutraliser une personne
+                penalties_actuel += 100 * self.penalites[new_etat.position[0]][new_etat.position[1]]
+                # self.penalites[i][j] retourne le nombre exact de gardes par lesquels on est vu pour chaque case
+                # si self.penalites[new_etat.position[0]][new_etat.position[1]] == 0 alors on subit pas de penalites supplémentaires
+                # dans le cas contraire, c'est égal à 100 * __seen_by_guard_num()
+                # reste a faire: __seen_by_civil_num()
+
+                #self.plateau.set_case(new_etat.position[0], new_etat.position[1], ("vide", None))
+
+        elif action.name == "neutralize_civil":
+            if contenu_sur_cette_case == "civil":
+                nb_civil = etat.civil_count
+                new_etat = etat._replace(civil_count=nb_civil-1)
+                penalties_actuel += 20 # 20 car on vient de neutraliser une personne
+                penalties_actuel += 100 * self.penalites[new_etat.position[0]][new_etat.position[1]]
+                # self.penalites[i][j] retourne le nombre exact de gardes par lesquels on est vu pour chaque case
+                # si self.penalites[new_etat.position[0]][new_etat.position[1]] == 0 alors on subit pas de penalites supplémentaires
+                # dans le cas contraire, c'est égal à 100 * __seen_by_guard_num()
+                # reste a faire: __seen_by_civil_num()
+
+                #self.plateau.set_case(new_etat.position[0], new_etat.position[1], ("vide", None))
+
+        elif action.name == "take_suit" :
+            if not etat.has_suit and contenu_sur_cette_case == "costume":
+                new_etat = etat._replace(has_suit=True)
+                penalties_actuel += 5 * self.penalites[new_etat.position[0]][new_etat.position[1]]
+                # self.penalites[i][j] retourne le nombre exact de gardes par lesquels on est vu pour chaque case
+                # si self.penalites[new_etat.position[0]][new_etat.position[1]] == 0 alors on subit pas de penalites supplémentaires
+                # dans le cas contraire, c'est égal à 5 * __seen_by_guard_num()
+
+                #self.plateau.set_case(new_etat.position[0], new_etat.position[1], ("vide", None))
+
+        elif action.name == "take_weapon" :
+            if not etat.has_weapon and contenu_sur_cette_case == "corde":
+                new_etat = etat._replace(has_weapon=True)
+                penalties_actuel += 5 * self.penalites[new_etat.position[0]][new_etat.position[1]]
+                # self.penalites[i][j] retourne le nombre exact de gardes par lesquels on est vu pour chaque case
+                # si self.penalites[new_etat.position[0]][new_etat.position[1]] == 0 alors on subit pas de penalites supplémentaires
+                # dans le cas contraire, c'est égal à 5 * __seen_by_guard_num()
+
+                #self.plateau.set_case(new_etat.position[0], new_etat.position[1], ("vide", None))
+
+        elif action.name == "put_on_suit" :
+            if etat.has_suit:
+                new_etat = etat._replace(is_suit_on=True)
+                penalties_actuel += 100 * self.penalites[new_etat.position[0]][new_etat.position[1]]
+                # self.penalites[i][j] retourne le nombre exact de gardes par lesquels on est vu pour chaque case
+                # si self.penalites[new_etat.position[0]][new_etat.position[1]] == 0 alors on subit pas de penalites supplémentaires
+                # dans le cas contraire, c'est égal à 100 * __seen_by_guard_num()
+                # reste a faire: __seen_by_civil_num()
+
+        # update penalites
+        etat_result = None
+        if new_etat is not None:
+            etat_result = new_etat._replace(penalties=penalties_actuel)
+
+        return etat_result
+
+
+    def do_fn_for_real(self, nom_action):
+        # Faire une action réellement
+        if nom_action == "turn_clockwise":
+            self.status = self.hitman.turn_clockwise()
+        elif nom_action == "turn_anti_clockwise":
+            self.status = self.hitman.turn_anti_clockwise()
+        elif nom_action == "move":
+            self.status = self.hitman.move()
+        elif nom_action == "kill_target":
+            self.status = self.hitman.kill_target()
+        elif nom_action == "neutralize_guard":
+            self.status = self.hitman.neutralize_guard()
+        elif nom_action == "neutralize_civil":
+            self.status = self.hitman.neutralize_civil()
+        elif nom_action == "take_suit" :
+            self.status = self.hitman.take_suit()
+        elif nom_action == "take_weapon" :
+            self.status = self.hitman.take_weapon()
+        elif nom_action == "put_on_suit":
+            self.status = self.hitman.put_on_suit()
+
+        return None
+
+    def succ(self, etat):
+        # Traiter l'etat en cours et retourne l'etat suivant:
+        Action = namedtuple("Action", ("name"))
+        actions = {
+            "turn_clockwise" : {Action("turn_clockwise")},
+            "turn_anti_clockwise" : {Action("turn_anti_clockwise")},
+            "move" : {Action("move")},
+            "kill_target" : {Action("kill_target")},
+            "neutralize_guard" : {Action("neutralize_guard")},
+            "neutralize_civil" : {Action("neutralize_civil")},
+            "take_suit" : {Action("take_suit")},
+            "take_weapon" : {Action("take_weapon")},
+            "put_on_suit" : {Action("put_on_suit")},
+        } 
+        dic = {}  # Crée un dictionnaire vide pour stocker les états successeurs
+        for nom_action in actions:
+            # Pour chaque nom d'action défini dans les règles
+            for action in actions[nom_action]:
+                # Pour chaque action correspondant à ce nom d'action dans les règles
+
+                # Vérifie si l'application de l'action sur l'état génère un nouvel état valide
+                if self.do_fn(action, etat) is not None:
+                    dic[self.do_fn(action, etat)] = nom_action
+                    # Ajoute le nouvel état à la clé et associe le nom de l'action au dictionnaire
+                
+        return dic  # Renvoie le dictionnaire des états successeurs avec les noms d'actions correspondants
+
+    def testIfGoalAchived(self, etat, objectif):
+        if objectif == "get_weapon":
+        # tester si le hitman a un arme, a un etat donne
+            return etat.has_weapon == True
+        elif objectif == "kill_target":
+        # tester si le jeu peut se terminer, a un etat donne
+            return etat.is_target_down == True
+        elif objectif == "return_home":
+        # tester si le jeu peut se terminer, a un etat donne
+            return etat.position == (0, 0)
+
+    def calculer_heuristique_a_etoile(self, etat, pos_i, pos_j):
+        # calculer g_score et h_score
+        # g_score: distance de (0, 0) a cet etat
+        # h_score: distance de cet etat a (pos_i, pos_j)
+        
+        g_score = self.plateau.distance_minimale(0, 0, etat.position[0],etat.position[1])
+        h_score = self.plateau.distance_minimale(etat.position[0],etat.position[1], pos_i, pos_j)
+        f_score = g_score + h_score
+        return f_score
+
+    def transform_dict_to_namedtuple(self, dictionary):
+        # Le but est d'avoir un hashable namedtuple
+        fields = list(dictionary.keys())
+        # Convertir 'vision' à un tuple de tuples
+        vision_tuples = tuple(tuple(item) for item in dictionary['vision'])
+        dictionary['vision'] = vision_tuples
+
+        # Convertir "direction"
+        if dictionary['orientation'] == HC.E:
+            dictionary['orientation'] = "gauche"
+        if dictionary['orientation'] == HC.N:
+            dictionary['orientation'] = "haut"
+        if dictionary['orientation'] == HC.W:
+            dictionary['orientation'] = "droite"
+        if dictionary['orientation'] == HC.E:
+            dictionary['orientation'] = "bas"
+
+        # Création d'un NamedTuple Class
+        Etat = namedtuple('Etat', fields)
+
+        # Création d'une instance de namedtuple
+        named_tuple_instance = Etat(**dictionary)
+        return named_tuple_instance
+
+      
+    def search_with_parent(self, etat_init, objectif):
+        if etat_init == None:
+            raise ValueError("Le jeu n'a pas ete initialise")
+
+        # Chercher la postion de l'objectif, par exemple la position de l'arme, du cible...
+        m, n = self.plateau.infos_plateau()
+        if objectif == "get_weapon":
+        # recuperer la position de l'arme
+            for i in range(m):
+                for j in range(n):
+                    if self.plateau.get_case(i, j).contenu[0] == "corde":
+                        pos_objectif_i = i
+                        pos_objectif_j = j
+        elif objectif == "kill_target":
+         # recuperer la position du cible
+           for i in range(m):
+                for j in range(n):
+                    if self.plateau.get_case(i, j).contenu[0] == "cible":
+                        pos_objectif_i = i
+                        pos_objectif_j = j
+        elif objectif == "return_home":
+            pos_objectif_i = 0
+            pos_objectif_j = 0
+        else: raise ValueError("objectif pas connu")
+        
+        queue = PriorityQueue()  # Crée une file de priorité
+        queue.put((0, etat_init))  # Ajoute l'état initial avec une priorité de 0 à la file
+        save = {etat_init: None}  # Dictionnaire pour enregistrer les états visités et l'action prédécesseur
+
+        while not queue.empty():  # Tant que la file de priorité n'est pas vide
+            _, etat = queue.get()  # Récupère l'état avec le score de pénalité le plus bas
+            # on traite alors la meilleure action
+
+            if self.testIfGoalAchived(etat, objectif):
+            # Si l'état correspond à l'objectif recherché
+                return etat, save  
+        
+            for etat_suivant, nom_action in self.succ(etat).items():
+            # Pour chaque état successeur et nom d'action correspondant
+                if etat_suivant not in save:
+                # Si l'état successeur n'a pas encore été visité
+                    save[etat_suivant] = (etat, nom_action)  # Enregistre l'état successeur et le nom d'action prédécesseur
+
+                    # Choisir entre 2 type d'algo de recherche: 2 etoile ou heuristique phase 2
+
+                    cout_action = etat_suivant.penalties # heurisitique de l'enonce de phase 2
+                    #cout_action = self.calculer_heuristique_a_etoile(etat_suivant, pos_objectif_i, pos_objectif_j)
+                        #heuristique a_etoile
+
+
+                    # Calcule le coût heuristique de l'action successeur
+                    queue.put((cout_action, etat_suivant))
+                    # Ajoute l'état successeur à la file de priorité avec le coût heuristique comme priorité
+                
+        return None, save  # Aucun objectif trouvé, renvoie None et le dictionnaire save
+
+    def dict2path(self, etat, dic):
+
+        liste = [(etat, None)]  # Liste représentant l'état initial
+        while dic[etat] is not None:
+            # Tant que le prédécesseur de l'état actuel n'est pas None dans le dictionnaire
+            parent, action = dic[etat]  # Récupère le prédécesseur et l'action menant à l'état actuel
+            liste.append((parent, action))  
+            etat = parent  # Met à jour l'état actuel avec le prédécesseur pour continuer la remontée
+        liste.reverse()  # Inverse l'ordre des éléments de la liste pour obtenir le chemin complet du début à l'état
+        return liste  # Renvoie la liste représentant le chemin complet
+
+    def phase_2(self):
+        print("La phase 2 a commence !")
+        print("Veuillez patienter, Hitman est en train de reflechir ...")
+        
+        """
+        Dans cette phase, il y a 3 objectifs principals:
+            I.  Chercher le corde
+            II. Tuer le cible
+            III.Retourner à (0, 0) 
+
+        """
+
+        self.status = self.hitman.start_phase2()
+        self.update_hitman()
+
+        etat_s0 = self.transform_dict_to_namedtuple(self.status)
+
+        etat_objectif_1, save = self.search_with_parent(etat_s0, "get_weapon")
+        actions_obj1 = [action for etat, action in self.dict2path(etat_objectif_1, save) if action]
+        print("Hitman a trouve un arme !")
+
+        etat_objectif_2, save = self.search_with_parent(etat_objectif_1, "kill_target")
+        actions_obj2 = [action for etat, action in self.dict2path(etat_objectif_2, save) if action]
+        print("Hitman a trouve un chemin pour aller au cible !")
+
+        etat_objectif_3, save = self.search_with_parent(etat_objectif_2, "return_home")
+        actions_obj3 = [action for etat, action in self.dict2path(etat_objectif_3, save) if action]
+        print("Hitman a trouve un chemin pour retourner !")
+
+        print("Liste de ses actions:")
+        print("Objectif 1: trouver un arme")
+        print(actions_obj1)
+        print("Objectif 2: tuer le cible")
+        print(actions_obj2)
+        print("Objectif 3: retourner")
+        print(actions_obj3)
+
+        for action in actions_obj1:
+            self.do_fn_for_real(action)
+            self.update_hitman()
+            print(self.plateau)
+            time.sleep(0.2)
+        for action in actions_obj2:
+            self.do_fn_for_real(action)
+            self.update_hitman()
+            print(self.plateau)
+            time.sleep(0.2)
+        for action in actions_obj3:
+            self.do_fn_for_real(action)
+            self.update_hitman()
+            print(self.plateau)
+            time.sleep(0.2)
+
+
+        isDone, message, historique = self.hitman.end_phase2()
+        print("Le jeu est termine? ", isDone)
+        print("Message: ", message)
+        print("Historique des actions:", historique)
 
 
 g = Game()
-g.phase_1(temporisation=True, sat_mode="no_sat")
+g.phase_1(temporisation=False, sat_mode="no_sat")
+g.phase_2()

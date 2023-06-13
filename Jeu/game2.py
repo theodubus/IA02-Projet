@@ -116,37 +116,49 @@ class Game2(Game):
                 # pour savoir le contenu de cette cas, genre "guard" ou "mur" etc.
                 if (new_contenu_sur_case!= "garde" or (new_position[0], new_position[1]) in etat.ensemble_neutralise) and new_contenu_sur_case!= "mur":
                     new_etat = etat._replace(position=new_position) 
-                    penalties_actuel += 5 * self.seen_by_guards(new_position[0], new_position[1], new_etat.ensemble_neutralise)
-                    # seen_by_guards retourne le nombre exact de gardes par lesquels on est vu pour cette case
-                    # si c'est == 0 alors on subit pas de penalites supplémentaires
-                    # dans le cas contraire, c'est égal à 5 * nb de guards qui voit le hitman
+                    if new_etat.is_suit_on:
+                        pass
+                    else:
+                        penalties_actuel += 5 * self.seen_by_guards(new_position[0], new_position[1], new_etat.ensemble_neutralise)
+                        # seen_by_guards retourne le nombre exact de gardes par lesquels on est vu pour cette case
+                        # si c'est == 0 alors on subit pas de penalites supplémentaires
+                        # dans le cas contraire, c'est égal à 5 * nb de guards qui voit le hitman
 
         elif action == "turn_clockwise":
             new_orientation = self.tourner_horaire(etat.orientation)
             new_etat = etat._replace(orientation=new_orientation)
-            penalties_actuel += 5 * self.seen_by_guards(new_etat.position[0], new_etat.position[1], new_etat.ensemble_neutralise)
-            # seen_by_guards retourne le nombre exact de gardes par lesquels on est vu pour cette case
-            # si c'est == 0 alors on subit pas de penalites supplémentaires
-            # dans le cas contraire, c'est égal à 5 * nb de guards qui voit le hitman
+            if new_etat.is_suit_on:
+                pass
+            else:
+                penalties_actuel += 5 * self.seen_by_guards(new_etat.position[0], new_etat.position[1], new_etat.ensemble_neutralise)
+                # seen_by_guards retourne le nombre exact de gardes par lesquels on est vu pour cette case
+                # si c'est == 0 alors on subit pas de penalites supplémentaires
+                # dans le cas contraire, c'est égal à 5 * nb de guards qui voit le hitman
 
         elif action == "turn_anti_clockwise":
             new_orientation = self.tourner_antihoraire(etat.orientation)
             new_etat = etat._replace(orientation=new_orientation)
-            penalties_actuel += 5 * self.seen_by_guards(new_etat.position[0], new_etat.position[1], new_etat.ensemble_neutralise)
-            # seen_by_guards retourne le nombre exact de gardes par lesquels on est vu pour cette case
-            # si c'est == 0 alors on subit pas de penalites supplémentaires
-            # dans le cas contraire, c'est égal à 5 * nb de guards qui voit le hitman
+            if new_etat.is_suit_on:
+                pass
+            else:
+                penalties_actuel += 5 * self.seen_by_guards(new_etat.position[0], new_etat.position[1], new_etat.ensemble_neutralise)
+                # seen_by_guards retourne le nombre exact de gardes par lesquels on est vu pour cette case
+                # si c'est == 0 alors on subit pas de penalites supplémentaires
+                # dans le cas contraire, c'est égal à 5 * nb de guards qui voit le hitman
 
         elif action == "kill_target":
             contenu_sur_cette_case = self.plateau.get_case(etat.position[0], etat.position[1]).contenu[0]
             if etat.has_weapon and contenu_sur_cette_case == "cible":
                 new_etat = etat._replace(is_target_down=True)
-                penalties_actuel += 5 * self.seen_by_guards(new_etat.position[0], new_etat.position[1], new_etat.ensemble_neutralise)
-                penalties_actuel += 100 * (self.seen_by_guards(new_etat.position[0], new_etat.position[1], new_etat.ensemble_neutralise) \
-                                            + self.seen_by_civil(new_etat.position[0], new_etat.position[1], new_etat.ensemble_neutralise))
-                # seen_by_guards retourne le nombre exact de gardes par lesquels on est vu pour chaque case
-                # si c'est == 0 alors on subit pas de penalites supplémentaires
-                # dans le cas contraire, c'est égal à 100 * (nb de guards + civils qui voit le hitman)
+                if new_etat.is_suit_on:
+                    pass
+                else:
+                    penalties_actuel += 5 * self.seen_by_guards(new_etat.position[0], new_etat.position[1], new_etat.ensemble_neutralise)
+                    penalties_actuel += 100 * (self.seen_by_guards(new_etat.position[0], new_etat.position[1], new_etat.ensemble_neutralise) \
+                                                + self.seen_by_civil(new_etat.position[0], new_etat.position[1], new_etat.ensemble_neutralise))
+                    # seen_by_guards retourne le nombre exact de gardes par lesquels on est vu pour chaque case
+                    # si c'est == 0 alors on subit pas de penalites supplémentaires
+                    # dans le cas contraire, c'est égal à 100 * (nb de guards + civils qui voit le hitman)
 
         elif action == "neutralize_guard":
             # obtenir le contenu des cases adjacentes
@@ -168,13 +180,16 @@ class Game2(Game):
                     new_tuple_neutralisee = (transition_etat.ensemble_neutralise , (transition_etat.position[0], transition_etat.position[1]))
                     new_etat = transition_etat._replace(ensemble_neutralise=new_tuple_neutralisee)
 
-                    penalties_actuel += 5 * self.seen_by_guards(new_etat.position[0], new_etat.position[1], new_etat.ensemble_neutralise)
-                    penalties_actuel += 20 # 20 car on vient de neutraliser une personne
-                    penalties_actuel += 100 * (self.seen_by_guards(new_etat.position[0], new_etat.position[1], new_etat.ensemble_neutralise) \
-                                                + self.seen_by_civil(new_etat.position[0], new_etat.position[1], new_etat.ensemble_neutralise))
-                    # seen_by_guards retourne le nombre exact de gardes par lesquels on est vu pour chaque case
-                    # si c'est == 0 alors on subit pas de penalites supplémentaires
-                    # dans le cas contraire, c'est égal à 100 * (nb de guards + civils qui voit le hitman)
+                    if new_etat.is_suit_on:
+                        pass
+                    else:
+                        penalties_actuel += 5 * self.seen_by_guards(new_etat.position[0], new_etat.position[1], new_etat.ensemble_neutralise)
+                        penalties_actuel += 20 # 20 car on vient de neutraliser une personne
+                        penalties_actuel += 100 * (self.seen_by_guards(new_etat.position[0], new_etat.position[1], new_etat.ensemble_neutralise) \
+                                                    + self.seen_by_civil(new_etat.position[0], new_etat.position[1], new_etat.ensemble_neutralise))
+                        # seen_by_guards retourne le nombre exact de gardes par lesquels on est vu pour chaque case
+                        # si c'est == 0 alors on subit pas de penalites supplémentaires
+                        # dans le cas contraire, c'est égal à 100 * (nb de guards + civils qui voit le hitman)
 
 
         elif action == "neutralize_civil":
@@ -197,41 +212,53 @@ class Game2(Game):
                     new_tuple_neutralisee = (transition_etat.ensemble_neutralise , (transition_etat.position[0], transition_etat.position[1]))
                     new_etat = transition_etat._replace(ensemble_neutralise=new_tuple_neutralisee)
 
-                    penalties_actuel += 5 * self.seen_by_guards(new_etat.position[0], new_etat.position[1], new_etat.ensemble_neutralise)
-                    penalties_actuel += 20 # 20 car on vient de neutraliser une personne
-                    penalties_actuel += 100 * (self.seen_by_guards(new_etat.position[0], new_etat.position[1], new_etat.ensemble_neutralise) \
-                                                + self.seen_by_civil(new_etat.position[0], new_etat.position[1], new_etat.ensemble_neutralise))
-                    # seen_by_guards retourne le nombre exact de gardes par lesquels on est vu pour chaque case
-                    # si c'est == 0 alors on subit pas de penalites supplémentaires
-                    # dans le cas contraire, c'est égal à 100 * (nb de guards + civils qui voit le hitman)
+                    if new_etat.is_suit_on:
+                        pass
+                    else:
+                        penalties_actuel += 5 * self.seen_by_guards(new_etat.position[0], new_etat.position[1], new_etat.ensemble_neutralise)
+                        penalties_actuel += 20 # 20 car on vient de neutraliser une personne
+                        penalties_actuel += 100 * (self.seen_by_guards(new_etat.position[0], new_etat.position[1], new_etat.ensemble_neutralise) \
+                                                    + self.seen_by_civil(new_etat.position[0], new_etat.position[1], new_etat.ensemble_neutralise))
+                        # seen_by_guards retourne le nombre exact de gardes par lesquels on est vu pour chaque case
+                        # si c'est == 0 alors on subit pas de penalites supplémentaires
+                        # dans le cas contraire, c'est égal à 100 * (nb de guards + civils qui voit le hitman)
 
         elif action == "take_suit" :
             contenu_sur_cette_case = self.plateau.get_case(etat.position[0], etat.position[1]).contenu[0]
             if not etat.has_suit and contenu_sur_cette_case == "costume":
                 new_etat = etat._replace(has_suit=True)
-                penalties_actuel += 5 * self.seen_by_guards(new_etat.position[0], new_etat.position[1], new_etat.ensemble_neutralise)
-                # seen_by_guards retourne le nombre exact de gardes par lesquels on est vu pour cette case
-                # si c'est == 0 alors on subit pas de penalites supplémentaires
-                # dans le cas contraire, c'est égal à 5 * nb de guards qui voit le hitman
+                if new_etat.is_suit_on:
+                    pass
+                else:
+                    penalties_actuel += 5 * self.seen_by_guards(new_etat.position[0], new_etat.position[1], new_etat.ensemble_neutralise)
+                    # seen_by_guards retourne le nombre exact de gardes par lesquels on est vu pour cette case
+                    # si c'est == 0 alors on subit pas de penalites supplémentaires
+                    # dans le cas contraire, c'est égal à 5 * nb de guards qui voit le hitman
 
         elif action == "take_weapon" :
             contenu_sur_cette_case = self.plateau.get_case(etat.position[0], etat.position[1]).contenu[0]
             if not etat.has_weapon and contenu_sur_cette_case == "corde":
                 new_etat = etat._replace(has_weapon=True)
-                penalties_actuel += 5 * self.seen_by_guards(new_etat.position[0], new_etat.position[1], new_etat.ensemble_neutralise)
-                # seen_by_guards retourne le nombre exact de gardes par lesquels on est vu pour cette case
-                # si c'est == 0 alors on subit pas de penalites supplémentaires
-                # dans le cas contraire, c'est égal à 5 * nb de guards qui voit le hitman
+                if new_etat.is_suit_on:
+                    pass
+                else:
+                    penalties_actuel += 5 * self.seen_by_guards(new_etat.position[0], new_etat.position[1], new_etat.ensemble_neutralise)
+                    # seen_by_guards retourne le nombre exact de gardes par lesquels on est vu pour cette case
+                    # si c'est == 0 alors on subit pas de penalites supplémentaires
+                    # dans le cas contraire, c'est égal à 5 * nb de guards qui voit le hitman
 
         elif action == "put_on_suit" :
             if etat.has_suit:
                 new_etat = etat._replace(is_suit_on=True)
-                penalties_actuel += 5 * self.seen_by_guards(new_etat.position[0], new_etat.position[1], new_etat.ensemble_neutralise)
-                penalties_actuel += 100 * (self.seen_by_guards(new_etat.position[0], new_etat.position[1], new_etat.ensemble_neutralise) \
-                                            + self.seen_by_civil(new_etat.position[0], new_etat.position[1], new_etat.ensemble_neutralise))
-                # seen_by_guards retourne le nombre exact de gardes par lesquels on est vu pour chaque case
-                # si c'est == 0 alors on subit pas de penalites supplémentaires
-                # dans le cas contraire, c'est égal à 100 * (nb de guards + civils qui voit le hitman)
+                if new_etat.is_suit_on:
+                    pass
+                else:
+                    penalties_actuel += 5 * self.seen_by_guards(new_etat.position[0], new_etat.position[1], new_etat.ensemble_neutralise)
+                    penalties_actuel += 100 * (self.seen_by_guards(new_etat.position[0], new_etat.position[1], new_etat.ensemble_neutralise) \
+                                                + self.seen_by_civil(new_etat.position[0], new_etat.position[1], new_etat.ensemble_neutralise))
+                    # seen_by_guards retourne le nombre exact de gardes par lesquels on est vu pour chaque case
+                    # si c'est == 0 alors on subit pas de penalites supplémentaires
+                    # dans le cas contraire, c'est égal à 100 * (nb de guards + civils qui voit le hitman)
 
         # update penalites
         etat_result = None

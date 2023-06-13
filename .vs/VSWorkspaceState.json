@@ -2,8 +2,9 @@
   "ExpandedNodes": [
     "",
     "\\Jeu",
+    "\\Jeu\\gophersat",
     "\\Jeu\\utils"
   ],
-  "SelectedNode": "\\Jeu\\game.py",
+  "SelectedNode": "\\Jeu\\utils\\plateau.py",
   "PreviewInSolutionExplorer": false
 }

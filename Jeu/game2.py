@@ -150,7 +150,6 @@ class Game2(Game):
             # coordinate_garde est la position de garde
             for coordinate_garde, contenu in contenu_sur_cases_adjacentes.items():
                 if contenu == "garde" and (coordinate_garde[0], coordinate_garde[1]) not in etat.ensemble_neutralise:
-
                     nb_guard = etat.guard_count
                     transition_etat = etat._replace(guard_count=nb_guard-1) #transition_etat : maj guard_count
                     #maj ensemble_neutralise:

@@ -1,3 +1,4 @@
 # tester g_score only
 # prendre en compte le costume (et affichage special quand costume)
 # documenter/commenter le code
+# optim phase_2 detour inutile

@@ -277,6 +277,14 @@ class Plateau:
             raise ValueError("La case n'existe pas")
         self._plateau[i][j].contenu = contenu
 
+    def remove_case(self, i: int, j: int):
+        """
+        Retire le contenu de la case (i, j)
+        """
+        if not self.case_existe(i, j):
+            raise ValueError("La case n'existe pas")
+        self._plateau[i][j].erase_contenu()
+
     def get_case(self, i: int, j: int)-> Case:
         """
         Renvoie le contenu de la case (i, j)

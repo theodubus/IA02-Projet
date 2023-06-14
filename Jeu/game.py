@@ -826,4 +826,4 @@ class Game:
 
 
 g = Game()
-g.phase_1(temporisation=True, sat_mode="no_sat")
+g.phase_1(temporisation=False, sat_mode="no_sat")

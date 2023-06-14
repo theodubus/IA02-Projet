@@ -176,7 +176,7 @@ class Game:
         else:
             print("Perdu !")
 
-        # self.status = self.hitman.end_phase1()
+        self.status = self.hitman.end_phase1()
 
 
     def explore(self, i_objectif: int, j_objectif: int):
@@ -827,4 +827,4 @@ class Game:
 if __name__ == "__main__":
     # Pour que ces lignes de code ne soient pas executer dans un autre fichier
     g = Game()
-    g.phase_1(temporisation=True, sat_mode="no_sat")
+    g.phase_1(temporisation=False, sat_mode="no_sat")

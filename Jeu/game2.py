@@ -88,7 +88,7 @@ class Game2(Game):
         
         # si on est sur un invite que l'on n'a pas supprime
         if self.plateau.get_case(i, j).contenu[0] == "invite" and not (i, j) in empty:
-            return 0
+            return 1
 
         nb_invite_vu = 0
 

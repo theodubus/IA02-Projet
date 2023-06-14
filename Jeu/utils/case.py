@@ -62,6 +62,12 @@ class Case:
         if value is not True:
             raise ValueError("La valeur ne peut que passer de False a True")
         self._proven_not_guard = value
+
+    def erase_contenu(self):
+        """
+        supprime le contenu de la case
+        """
+        self._contenu = ("vide", None)
         
     @property
     def contenu(self) -> Tuple[str, str]:

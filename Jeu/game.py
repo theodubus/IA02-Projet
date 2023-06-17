@@ -28,20 +28,35 @@ class Game:
 
     
     Les methodes utiles sont :
-        - pos_actuelle : renvoie la position actuelle du hitman
-        - direction_actuelle : renvoie la direction actuelle du hitman
-        - phase_1 : methode qui implemente la phase 1 du jeu (voir plus bas)
-        - explore : methode qui explore une case pour en determiner le contenu (voir plus bas)
-        - prochain_objectif : methode qui determine la prochaine case a explorer (voir plus bas)
-        - prochaine_case : methode qui determine la prochaine case a laquelle se deplacer (voir plus bas)
-        - penalite_minimale : methode qui determine la penalite minimale pour aller a une case (voir plus bas)
-        - risque : methode qui determine le risque d'aller sur une case (voir plus bas)
-        - update_knowledge : methode qui met a jour notre modelisation du jeu (voir plus bas)
-        - update_hitman : methode qui met a jour la position et la direction du hitman sur le plateau (voir plus bas)
-        - tourner : methode qui tourne jusqu'a ce qu'une case soit visible (voir plus bas)
-        - satisfiable : methode qui determine si la base de clauses est satisfiable (voir plus bas)
-        
+        Pour la phase 1 :
+            - pos_actuelle : renvoie la position actuelle du hitman
+            - direction_actuelle : renvoie la direction actuelle du hitman
+            - phase_1 : methode qui implemente la phase 1 du jeu (voir plus bas)
+            - explore : methode qui explore une case pour en determiner le contenu (voir plus bas)
+            - prochain_objectif : methode qui determine la prochaine case a explorer (voir plus bas)
+            - prochaine_case : methode qui determine la prochaine case a laquelle se deplacer (voir plus bas)
+            - penalite_minimale : methode qui determine la penalite minimale pour aller a une case (voir plus bas)
+            - risque : methode qui determine le risque d'aller sur une case (voir plus bas)
+            - update_knowledge : methode qui met a jour notre modelisation du jeu (voir plus bas)
+            - update_hitman : methode qui met a jour la position et la direction du hitman sur le plateau (voir plus bas)
+            - tourner : methode qui tourne jusqu'a ce qu'une case soit visible (voir plus bas)
+            - satisfiable : methode qui determine si la base de clauses est satisfiable (voir plus bas)
+
+        Pour la phase 2 :
+            - avancer, tourner_horaire, tourner_antihoraire : methodes qui renvoient la nouvelle position/direction apres avoir effectue l'action correspondante
+            - seen_by_guards, seen_by_civil : methodes qui renvoient le nombre de gardes/invites qui nous voient depuis une case donnee
+            - do_fn : methode qui permet de simuler une action, prend un etat en parametre et renvoit le nouvel etat correspondant apres l'action
+            - do_fn_for_real : methode qui permet d'effectuer reellement une action
+            - succ : methode qui renvoit les etats successeurs d'un etat donne (voir plus bas)
+            - test_if_goal_achived : Teste si dans l'objectif a ete atteint pour l'etat donne
+            - h_score : Adaptation de penalite_minimale pour calcul de h_score pour A* dans la phase 2 (voir plus bas)
+            - calculer_heuristique_a_etoile : methode qui calcule l'heuristique pour A*, g_score + h_score
+            - transform_dict_to_namedtuple : initialise l'etat initial (namedtuple)
+            - locate_element : localise un element sur le plateau
+            - search_with_parent : cherche a atteindre un objectif depuis un etat donne
+            - phase_2 : implementation de la phase 2 du jeu (voir plus bas)
     """
+
     def __init__(self):
         self.plateau = None
         self.hitman = HitmanReferee()
@@ -78,6 +93,12 @@ class Game:
             HC.S : "bas",
             HC.W : "gauche"
         }
+
+    ##########################################
+    ##########################################
+    ######## Methodes pour la phase 1 ########
+    ##########################################
+    ##########################################
     
     @property
     def sat_mode(self):
@@ -108,7 +129,7 @@ class Game:
         return self._dict_directions[self.status['orientation']]
             
 
-    def phase_1(self, temporisation: bool = True, sat_mode: str = "auto"):
+    def phase_1(self, temporisation: bool = True, sat_mode: str = "auto")-> Tuple[int, int]:
         """
         Implementation de la phase 1 du jeu. Le deroule est le suivant :
 
@@ -183,7 +204,7 @@ class Game:
 
         print(score)
 
-        return calculated_score, self.status['penalties']
+        return calculated_score, -self.status['penalties'], 2*m*n
 
     def explore(self, i_objectif: int, j_objectif: int):
         """
@@ -363,7 +384,7 @@ class Game:
         """
         Determine le risque d'aller sur une case,
         On calcule d'abord un tuple (min, max) correspondant au nombre minimum et maximum de gardes
-        par lesquels on peut etre vus en passant par la case (i, j). On peut etre vu âr quatre
+        par lesquels on peut etre vus en passant par la case (i, j). On peut etre vu par quatre
         directions differentes, donc le nombre de gardes peut varier entre 0 et 4.
         (si deux gardes regardent dans la meme direction et sont a cote, le premier bloque la vue du second)
 
@@ -828,14 +849,24 @@ class Game:
         # si toutes les cases ont ete explorees, on renvoie False
         return False
     
-
+    ##########################################
+    ##########################################
     ######## Methodes pour la phase 2 ########
+    ##########################################
+    ##########################################
     
-    def avancer(self, position, direction):
+    def avancer(self, position: Tuple[int, int], direction: str)-> Tuple[int, int]:
+        """
+        Renvoit la position de la case devant la case (i, j) en regardant dans la direction
+        La case peut ne pas exister
+        """
         i, j = position
         return {"droite": (i+1, j), "gauche": (i-1, j), "haut": (i, j+1), "bas": (i, j-1)}[direction]
 
-    def tourner_horaire(self, direction):
+    def tourner_horaire(self, direction: str)-> str:
+        """
+        Renvoie la direction dans laquelle on regarde apres avoir tourne dans le sens des aiguilles d'une montre
+        """
         if direction == "gauche":
             return "haut"
         elif direction == "haut":
@@ -844,8 +875,13 @@ class Game:
             return "bas"
         elif direction == "bas":
             return "gauche"
+        else:
+            raise ValueError("La direction n'est pas bonne")
 
-    def tourner_antihoraire(self, direction):
+    def tourner_antihoraire(self, direction: str)-> str:
+        """
+        Renvoie la direction dans laquelle on regarde apres avoir tourne dans le sens inverse des aiguilles d'une montre
+        """
         if direction == "gauche":
             return "bas"
         elif direction == "haut":
@@ -854,11 +890,13 @@ class Game:
             return "haut"
         elif direction == "bas":
             return "droite"
+        else:
+            raise ValueError("La direction n'est pas bonne")
 
     def seen_by_guards(self, i: int, j: int, empty: List[Tuple[int, int]] = [])-> int:
         """
         Renvoie le nombre de gardes qui peuvent nous voir depuis la case (i, j)
-        empty est la liste des cases qui ont ete videes (inite/garde) neutralise,
+        empty est la liste des cases qui ont ete videes : invite/garde neutralise,
         objet ramasse
         """
 
@@ -872,6 +910,7 @@ class Game:
         nb_garde_vu = 0
 
         # cases ou un garde peut voir (i, j) en regardant dans une direction
+        # la direction est inversee : si un garde nous voit en regardant a gauche, il est sur une case a droite de nous
         vues_direction = {"bas": [(i, j+1), (i, j+2)],
                             "gauche": [(i+1, j), (i+2, j)],
                             "haut": [(i, j-1), (i, j-2)],
@@ -896,7 +935,7 @@ class Game:
     def seen_by_civil(self, i: int, j: int, empty: List[Tuple[int, int]] = [])-> int:
         """
         Renvoie le nombre de civils qui peuvent nous voir depuis la case (i, j)
-        empty est la liste des cases qui ont ete videes (inite/garde) neutralise,
+        empty est la liste des cases qui ont ete videes : invite/garde neutralise,
         objet ramasse
         """
 
@@ -905,7 +944,7 @@ class Game:
         
         # si on est sur un invite que l'on n'a pas supprime
         if self.plateau.get_case(i, j).contenu[0] == "invite" and not (i, j) in empty:
-            return 1
+            return 1 # l'invite sur lequel on n'est nous voit, c'est ce qui a ete defini dans hitman.py
 
         nb_invite_vu = 0
 
@@ -924,8 +963,12 @@ class Game:
                 
         return nb_invite_vu
 
-    def do_fn(self, action, etat):
-        # "Simuler" une action, utilisee dans la phase de planification
+    def do_fn(self, action: str, etat: namedtuple)-> namedtuple:
+        """
+        Cette methode est utilisee dans la phase de planification,
+        Elle a pour objectif de simuler une action et de renvoyer le nouvel etat
+        que l'on obtient apres avoir fait cette action a partir d'un etat donne
+        """
 
         penalties_actuel = etat.penalties + 1 # +1 car cout de base d'une action
         new_etat = None
@@ -933,8 +976,6 @@ class Game:
         i = etat.position[0]
         j = etat.position[1]
 
-        # On calcule le nombre de guards et de civils qui nous voient, cela permet de rendre le code plus clair
-        # On peut calculer ce nombre avant de faire l'action car on s'en servira que si on ne change pas de case
         seen_by_guards = self.seen_by_guards(i, j, list(etat.ensemble_cases_videes))
         seen_by_civil = self.seen_by_civil(i, j, list(etat.ensemble_cases_videes))
         seen_by_total = seen_by_guards + seen_by_civil
@@ -984,9 +1025,9 @@ class Game:
             
             # si la case existe
             if self.plateau.case_existe(case_devant[0], case_devant[1]):
-                # si la case est un garde non neutralise
+                # si la case est un garde/invite non neutralise
                 if self.plateau.get_case(case_devant[0], case_devant[1]).contenu[0] == type_cible and (case_devant[0], case_devant[1]) not in etat.ensemble_cases_videes:
-                    # si le garde ne nous voit pas
+                    # si le garde/invite ne nous voit pas : si son orientation ne correspond pas a l'oppose de la notre
                     if self.plateau.get_case(case_devant[0], case_devant[1]).contenu[1] != opposite_direction[orientation_actuelle]:
                         new_tuple_neutralisee = etat.ensemble_cases_videes + ((case_devant[0], case_devant[1]),)
                         new_etat = etat._replace(ensemble_cases_videes=new_tuple_neutralisee)
@@ -1014,7 +1055,9 @@ class Game:
         if new_etat is None:
             return None
         
-        # update penalites
+        # penalites des gardes si on n'a pas de costume
+        # on n'utilise pas la variable seen_by_guards initialisee plus haut, on recalcule
+        # avec la methode, car la position a pu changer (si on a "move")
         if not new_etat.is_suit_on:
             penalties_actuel += 5 * self.seen_by_guards(new_etat.position[0], new_etat.position[1], list(new_etat.ensemble_cases_videes))
         
@@ -1023,39 +1066,66 @@ class Game:
         return etat_result
 
 
-    def do_fn_for_real(self, nom_action):
+    def do_fn_for_real(self, nom_action: str):
+        """
+        Cette methode permet d'effectuer une action sur le plateau reellement
+        lors de la phase 2. Elle n'est utilisee que lorsque l'on a trouve la liste
+        complete des actions a effectuer.
+        """
         position = self.status['position']
 
         # Faire une action reellement
         if nom_action == "turn_clockwise":
             self.status = self.hitman.turn_clockwise()
+
         elif nom_action == "turn_anti_clockwise":
             self.status = self.hitman.turn_anti_clockwise()
+
         elif nom_action == "move":
             self.status = self.hitman.move()
+
         elif nom_action == "kill_target":
             self.status = self.hitman.kill_target()
+            # on indique au plateau que la cible est tuee pour l'affichage
             self.plateau.remove_case(position[0], position[1])
+
         elif nom_action == "neutralize_guard":
             i_guard, j_guard = self.status['vision'][0][0]
             self.status = self.hitman.neutralize_guard()
+            # on indique au plateau que le garde est neutralise pour l'affichage
             self.plateau.remove_case(i_guard, j_guard)
+
         elif nom_action == "neutralize_civil":
             i_civil, j_civil = self.status['vision'][0][0]
             self.status = self.hitman.neutralize_civil()
+            # on indique au plateau que l'invite est neutralise pour l'affichage
             self.plateau.remove_case(i_civil, j_civil)
+            
         elif nom_action == "take_suit" :
             self.status = self.hitman.take_suit()
+            # on indique au plateau que le costume est pris pour l'affichage
             self.plateau.remove_case(position[0], position[1])
+            
         elif nom_action == "take_weapon" :
             self.status = self.hitman.take_weapon()
+            # on indique au plateau que l'arme est prise pour l'affichage
             self.plateau.remove_case(position[0], position[1])
+
         elif nom_action == "put_on_suit":
             self.status = self.hitman.put_on_suit()
+            # on indique au plateau que le costume est mis pour l'affichage
+            self.plateau.put_suit()
+            
         return None
 
-    def succ(self, etat):
-        # Traiter l'etat en cours et retourne l'etat suivant:
+    def succ(self, etat: namedtuple)-> List[namedtuple]:
+        """
+        Cette methode prend en parametre un etat, et retourne tous ses etats successeurs.
+
+        Un etat est successeur a deux conditions :
+            - Il correspond a l'etat dans lequel on se retrouverait en effectuant une seule action
+            - Il n'est pas en conflit avec les regles du jeu (ex: tuer la cible sans arme, aller dans un mur, etc)
+        """
         actions = [
             "turn_clockwise",
             "turn_anti_clockwise", 
@@ -1069,25 +1139,40 @@ class Game:
         ] 
         succ = []
         for action in actions:
+            # on calcule pour chaque actions l'etat dans lequel on se retrouverait,
+            # cet etat est "None" si il est en conflit avec les regles du jeu
             etat_apres_action = self.do_fn(action, etat)
             if etat_apres_action is not None:
                 succ.append(etat_apres_action)
         return succ
     
-    def testIfGoalAchived(self, etat, objectif):
+    def test_if_goal_achived(self, etat, objectif: str)-> bool:
+        """
+        Teste si dans l'objectif a ete atteint pour l'etat donne
+        """
         if objectif == "get_weapon":
             return etat.has_weapon == True
         elif objectif == "kill_target":
             return etat.is_target_down == True
         elif objectif == "return_home":
             return etat.position == (0, 0)
+        elif objectif == "get_suit":
+            return etat.has_suit == True
         else:
             raise ValueError("objectif invalide")
         
     
-    def h_score(self, i: int, j: int, i_start: int, j_start: int, empty: List[Tuple[int, int]] = [])-> int:
+    def h_score(self, i: int, j: int, i_start: int, j_start: int, empty: List[Tuple[int, int]] = [], suit_on: bool = False)-> int:
         """
         Adaptation de penalite_minimale pour calcul de h_score pour A* dans la phase 2
+
+        Les modifications sont notamment :
+            - On ne compte pas les penalites de la case d'origine car deja comptee dans le g_score
+            - On ne compte pas les penalites dues aux gardes si on a un costume
+            - On tient compte du fait que certaines cases ont ete videes (invite/garde neutralise, objet ramasse)
+            - On ne retourne que la valeur (car une seule case nous interesse, on retourne donc cette valeur), et pas un tableau de valeur (une par case)
+            - Remplacement du risque et utilisation du nombre exact de gardes qui nous voient car en phase 2 l'information est complete
+            - Possibilite de passer a travers un garde si on le tue (tenir compte du cout de cette action)
         """
         m, n = self.plateau.infos_plateau()
         cases_traitees = set()
@@ -1095,18 +1180,22 @@ class Game:
 
         penalites = [[float("inf") for _ in range(n)] for _ in range(m)]
         
-        penalites[i][j] = 5 * self.seen_by_guards(i, j, empty)
+        penalites[i][j] = 0 # nombre de gardes qui nous voient sur cette case deja compte dans le g_score
         cases_traitees.add((i, j))
 
         for i_voisin, j_voisin in self.plateau.voisins(i, j):
-            malus = 0
+            malus_kill = 0
             if self.plateau.get_case(i_voisin, j_voisin).contenu[0] == "mur": # on ne peut pas passer par un mur
                 continue
             elif self.plateau.get_case(i_voisin, j_voisin).contenu[0] == "garde" and not (i_voisin, j_voisin) in empty: # on peut passer par un garde encore present mais il faut le neutraliser
-                malus = 20
-                malus += 100 * (self.seen_by_guards(i, j, empty) + self.seen_by_civil(i, j, empty))
+                malus_kill = 20
+                malus_kill += 100 * (self.seen_by_guards(i, j, empty) + self.seen_by_civil(i, j, empty))
                 
-            penalite = malus + penalites[i][j] + 1 + 5 * self.seen_by_guards(i_voisin, j_voisin, empty)
+            if not suit_on:
+                malus_seen = 5 * self.seen_by_guards(i_voisin, j_voisin, empty)
+            else:
+                malus_seen = 0
+            penalite = malus_kill + penalites[i][j] + 1 + malus_seen
             heapq.heappush(tas_cases_a_traiter, (penalite, i_voisin, j_voisin))
 
         while not (i_start, j_start) in cases_traitees:
@@ -1117,36 +1206,45 @@ class Game:
             penalites[i_act][j_act] = penalite_act
 
             for i_voisin, j_voisin in self.plateau.voisins(i_act, j_act):
-                malus = 0
+                malus_kill = 0
                 if self.plateau.get_case(i_voisin, j_voisin).contenu[0] == "mur": # on ne peut pas passer par un mur
                     continue
                 elif self.plateau.get_case(i_voisin, j_voisin).contenu[0] == "garde" and not (i_voisin, j_voisin) in empty: # on peut passer par un garde encore present mais il faut le neutraliser
-                    malus = 20
-                    malus += 100 * (self.seen_by_guards(i_act, j_act, empty) + self.seen_by_civil(i_act, j_act, empty))
-                penalite = malus + penalites[i_act][j_act] + 1 + 5 * self.seen_by_guards(i_voisin, j_voisin, empty)
+                    malus_kill = 20
+                    malus_kill += 100 * (self.seen_by_guards(i_act, j_act, empty) + self.seen_by_civil(i_act, j_act, empty))
+
+                if not suit_on:
+                    malus_seen = 5 * self.seen_by_guards(i_voisin, j_voisin, empty)
+                else:
+                    malus_seen = 0
+                penalite = malus_kill + penalites[i_act][j_act] + 1 + malus_seen
                 heapq.heappush(tas_cases_a_traiter, (penalite, i_voisin, j_voisin))
 
         return penalites[i_start][j_start]
 
-    def calculer_heuristique_a_etoile(self, etat, pos_i, pos_j):
-        # calculer g_score et h_score
-        # g_score: penalites pour arriver a cet etat
-        # h_score: heuristique des penalites restantes
-
-        # TODO :
-        # 2 modes:
-        ## mode "g_score only"
-        ## mode "h_score penalties_min"
-
+    def calculer_heuristique_a_etoile(self, etat: namedtuple, pos_i: int, pos_j: int)-> int:
+        """
+        Calcul de l'heuristique pour A* dans la phase 2
+        """
         g_score = etat.penalties
         h_score = self.h_score(pos_i, pos_j, etat.position[0], etat.position[1], list(etat.ensemble_cases_videes))
-        #  self.plateau.distance_manhattan(etat.position[0], etat.position[1], pos_i, pos_j)
         f_score = g_score + h_score
 
         return f_score
 
-    def transform_dict_to_namedtuple(self, dictionary):
-        # Creer une liste contenant la position des cases sur lesquelles se trouvent des guards / civils neutralisees, ainsi que les objets ramasses
+    def transform_dict_to_namedtuple(self, dictionary: dict)-> namedtuple:
+        """
+        Cette methode permet d'initialiser le premier etat.
+        Elle prend en parametre le dictionnaire "status", le transforme
+        en enlevant certains champs dont on n'a pas besoin pour representer un etat,
+        en ajoute d'autres dont on a besoin, et renvoie un namedtuple "Etat" qui
+        represente le premier etat, et qui est base sur les champs que l'on a conserve.
+
+        Les deux champs ajoutes sont :
+            - ensemble_cases_videes : un ensemble de cases qui ont ete videes pour cet etat (invite/garde neutralise, objet ramasse)
+            - historique_actions : une liste des actions effectuees pour arriver a cet etat
+        """
+
         dictionary['ensemble_cases_videes'] = tuple()
         dictionary['historique_actions'] = tuple()
 
@@ -1174,9 +1272,12 @@ class Game:
         named_tuple_instance = Etat(**dictionary)
 
         return named_tuple_instance
-    
 
-    def locate_element(self, element):
+    def locate_element(self, element: str)-> Tuple[int, int]:
+        """
+        Retourne les coordonnees de l'element donne en parametre
+        """
+
         if element not in {"cible", "corde", "costume", "home"}:
             raise ValueError("Element invalide")
         
@@ -1191,9 +1292,25 @@ class Game:
                 
         return None
 
-    def search_with_parent(self, etat_init, objectif):
-        # objectif: "get_weapon" ou "kill_target" ou "return_home"
-        # search_mode: "a_etoile" ou "phase_2_heuristic"
+    def search_with_parent(self, etat_init: namedtuple, objectif: str)-> namedtuple:
+        """
+        Cette methode est celle qui effectue le travail de recherche a proprement parler pour la phase 2.
+
+        Elle prend en parametre un etat initial, et un objectif, et renvoie un etat remplissant
+        l'objectif qu'elle a reussi a atteindre en effectuant une serie d'actions.
+
+        Inutile de chercher a stocker ces actions etant donne que chaque etat possede un 
+        historique d'actions effectuees pour arriver a cet etat. On stocke en revanche
+        Un historique des etats visites (aux penalites et historique d'actions pres).
+        Cela permet de ne pas revisiter un etat deja visite, et donc de ne pas boucler.
+        A* permet de toute facon de ne pas boucler indefiniment, mais stocker l'historique
+        permet de gagner du temps.
+
+        L'objectif peut etre :
+            - "get_weapon" : chercher la corde
+            - "kill_target" : tuer la cible
+            - "return_home" : retourner en (0, 0)
+        """
 
         if etat_init == None:
             raise ValueError("Le jeu n'a pas ete initialise")
@@ -1202,72 +1319,88 @@ class Game:
 
         history = set(etat_actuel._replace(historique_actions=None, penalties=None))
 
-        objectif_dict = {"get_weapon": "corde", "kill_target": "cible", "return_home": "home"}
+        objectif_dict = {"get_weapon": "corde", "kill_target": "cible", "return_home": "home", "get_suit": "costume"}
         coords_objectif = self.locate_element(objectif_dict[objectif])
 
         successeurs = []
 
-        while not self.testIfGoalAchived(etat_actuel, objectif):
+        while not self.test_if_goal_achived(etat_actuel, objectif):
             for etat_suivant in self.succ(etat_actuel):
                 if etat_suivant._replace(historique_actions=None, penalties=None) in history:
                     continue
                 heuristique = self.calculer_heuristique_a_etoile(etat_suivant, coords_objectif[0], coords_objectif[1])
                 heapq.heappush(successeurs, (heuristique, etat_suivant))
 
-            _, etat_actuel = heapq.heappop(successeurs)#[1] # Recupere l'etat avec le cout le plus faible
+            _, etat_actuel = heapq.heappop(successeurs) # Recupere l'etat avec le cout le plus faible
             history.add(etat_actuel._replace(historique_actions=None, penalties=None))
             
         return etat_actuel
+    
 
-
-    def dict2path(self, etat, dic):
-        liste = [(etat, None)]  # Liste representant l'etat initial
-        while dic[etat] is not None:
-            # Tant que le predecesseur de l'etat actuel n'est pas None dans le dictionnaire
-            parent, action = dic[etat]  # Recupere le predecesseur et l'action menant e l'etat actuel
-            liste.append((parent, action))  
-            etat = parent  # Met e jour l'etat actuel avec le predecesseur pour continuer la remontee
-        liste.reverse()  # Inverse l'ordre des elements de la liste pour obtenir le chemin complet du debut e l'etat
-        return liste  # Renvoie la liste representant le chemin complet
-
-
-    def phase_2(self, temporisation_phase2):
+    def phase_2(self, temporisation: bool = True, costume_combinations: bool = False)-> int: 
         """
-        Dans cette phase, il y a 3 objectifs principaux:
+        La phase 2 est decoupee en 3 objectifs:
             I.   Chercher la corde
             II.  Tuer la cible
             III. Retourner en (0, 0)
 
-        Un objectif secondaire est de prendre le costume (si cela est benefique).
-        On compare donc plusieurs séries d'actions :
-        - Parcours avec prise de costume avant I
-        - Parcours avec prise de costume entre I et II
-        - Parcours avec prise de costume entre II et III
-        - Parcours sans prise de costume
+        Par defaut, on cherche juste a atteindre ces objectifs dans l'ordre. Cela a cependant un
+        defaut : le costume ne sera que pris si il est rentable pour la phase en cours, sauf qu'il
+        est possible que prendre le costume soit penalisant dans l'immediat, mais rentable a long terme,
+        dans les phases suivantes. Avec le parametre "costume_combinations", on compare les scores
+        entre :
+            - Ne pas specialement chercher a prendre le costume
+            - Chercher a prendre le costume avant la corde
+            - Chercher a prendre le costume avant la cible
+            - Chercher a prendre le costume avant de retourner en (0, 0)
+
+        On choisit la meilleure combinaison de ces 4 possibilites. Cette methode offrira un score soit egal
+        soit superieur a la methode par defaut, mais elle est bien plus longue a executer.
         """
+        self.temporisation = temporisation
 
         print("\nLa phase 2 a commence !")
 
         self.status = self.hitman.start_phase2()
         self.update_hitman()
 
+        # Etapes sans forcer la prise du costume
         etat_s0 = self.transform_dict_to_namedtuple(self.status)
+        etat_s1 = self.search_with_parent(etat_s0, "get_weapon") # Chercher la corde
+        etat_s2 = self.search_with_parent(etat_s1, "kill_target") # Tuer le cible
+        etat_final = self.search_with_parent(etat_s2, "return_home") # Retourner en (0, 0)
 
-        # Chercher la corde
-        etat_s1 = self.search_with_parent(etat_s0, "get_weapon")
+        if costume_combinations:
+            # Etapes en forcant la prise du costume apres avoir tue la cible, on peut partir de s2 car le debut est le meme
+            etat_s3 = self.search_with_parent(etat_s2, "get_suit") # Chercher le costume
+            etat_final_bis = self.search_with_parent(etat_s3, "return_home") # Retourner en (0, 0)
 
-        # Tuer le cible
-        etat_s2 = self.search_with_parent(etat_s1, "kill_target")
+            if etat_final_bis.penalties < etat_final.penalties:
+                etat_final = etat_final_bis
 
-        # Retourner en (0, 0)
-        etat_final = self.search_with_parent(etat_s2, "return_home")
+            # Etapes en forcant la prise du costume apres avoir pris la corde, on peut partir de s1 car le debut est le meme
+            etat_s2 = self.search_with_parent(etat_s1, "get_suit") # Chercher le costume
+            etat_s3 = self.search_with_parent(etat_s2, "kill_target") # Tuer le cible
+            etat_final_bis = self.search_with_parent(etat_s3, "return_home") # Retourner en (0, 0)
+
+            if etat_final_bis.penalties < etat_final.penalties:
+                etat_final = etat_final_bis
+
+            # Etapes en forcant la prise du costume au tout debut
+            etat_s1 = self.search_with_parent(etat_s0, "get_suit") # Chercher le costume
+            etat_s2 = self.search_with_parent(etat_s1, "get_weapon") # Chercher la corde
+            etat_s3 = self.search_with_parent(etat_s2, "kill_target") # Tuer le cible
+            etat_final_bis = self.search_with_parent(etat_s3, "return_home") # Retourner en (0, 0)
+
+            if etat_final_bis.penalties < etat_final.penalties:
+                etat_final = etat_final_bis
 
         print(self.plateau)
         for action in etat_final.historique_actions:
             self.do_fn_for_real(action)
             self.update_hitman()
             print(self.plateau)
-            if temporisation_phase2:
+            if self.temporisation:
                 sleep(0.25)
 
         _, score, _ = self.hitman.end_phase2()
@@ -1278,15 +1411,3 @@ class Game:
 
         return penalites
         
-
-
-if __name__ == "__main__":
-    g = Game()
-    score_1, penalites_1 = g.phase_1(temporisation=True, sat_mode="no_sat")
-    score_2 = g.phase_2(temporisation_phase2=True)
-    print("==============================================")
-    print("resultat final:")
-    print(f"Score phase 1: {score_1}, Penalites phase 1: {penalites_1}")
-    print(f"Score phase 2: {score_2}")
-    print(f"Score total: {score_1 + score_2}")
-    print("==============================================")

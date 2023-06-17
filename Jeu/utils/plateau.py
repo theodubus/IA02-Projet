@@ -11,6 +11,7 @@ class Plateau:
         - son contenu : liste de listes de cases
         - pos_hitman : tuple (i, j, direction) qui indique la position du hitman sur le plateau
         - history : dictionnaire qui stocke les distances minimales deja calculees pour la methode distance_minimale
+        - suit_on : booleen qui indique si le hitman porte un costume ou non
 
     Les methodes utiles sont :
         - board_to_dict : converti le plateau au format dictionnaire pour la soumission de la solution phase 1
@@ -29,6 +30,7 @@ class Plateau:
         - voisins_gardes : renvoie les cases autour de (i, j) ou un garde pourrait se trouver et voir la case
         - cases_entendre : renvoie les cases autour de la case dans un rayon de 2, plus la case actuelle elle-meme
         - cases_voir : renvoie les trois cases que l'on peut voir et acceder dans la direction donnee par rapport a la case (i, j)
+        - put_suit : met le costume sur le hitman
 
         Les methodes qui calculent les voisins veillent bien entendu a ne pas renvoyer des cases qui ne sont pas sur le plateau.
 
@@ -51,6 +53,13 @@ class Plateau:
             self._pos_hitman = None # position du hitman
 
         self._plateau = [[Case() for _ in range(n)] for _ in range(m)]
+        self._suit_on = False
+
+    def put_suit(self):
+        """
+        Met le costume sur le hitman
+        """
+        self._suit_on = True
 
     @property
     def pos_hitman(self) -> Tuple[int, int, str]:
@@ -331,7 +340,11 @@ class Plateau:
             plateau_str += f" {i}  |"
             for j in range(m):
                 if i == j_hitman and j == i_hitman:
-                    hitman = f"{'H' + directions[direction_hitman]}"
+                    if self._suit_on:
+                        h_char = "h"
+                    else:
+                        h_char = "H"
+                    hitman = f"{h_char + directions[direction_hitman]}"
                     if str(self._plateau[j][i]) != " ":
                         hitman += f" {str(self._plateau[j][i])}"
                     plateau_str += f"{hitman :^5}|"

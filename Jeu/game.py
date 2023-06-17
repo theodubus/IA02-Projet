@@ -1099,13 +1099,14 @@ class Game:
         cases_traitees.add((i, j))
 
         for i_voisin, j_voisin in self.plateau.voisins(i, j):
+            malus = 0
             if self.plateau.get_case(i_voisin, j_voisin).contenu[0] == "mur": # on ne peut pas passer par un mur
                 continue
             elif self.plateau.get_case(i_voisin, j_voisin).contenu[0] == "garde" and not (i_voisin, j_voisin) in empty: # on peut passer par un garde encore present mais il faut le neutraliser
                 malus = 20
-                malus += 100 * (self.seen_by_guards(i_voisin, j_voisin, empty) + self.seen_by_civil(i_voisin, j_voisin, empty))
+                malus += 100 * (self.seen_by_guards(i, j, empty) + self.seen_by_civil(i, j, empty))
                 
-            penalite = penalites[i][j] + 1 + 5 * self.seen_by_guards(i_voisin, j_voisin, empty)
+            penalite = malus + penalites[i][j] + 1 + 5 * self.seen_by_guards(i_voisin, j_voisin, empty)
             heapq.heappush(tas_cases_a_traiter, (penalite, i_voisin, j_voisin))
 
         while not (i_start, j_start) in cases_traitees:
@@ -1121,7 +1122,7 @@ class Game:
                     continue
                 elif self.plateau.get_case(i_voisin, j_voisin).contenu[0] == "garde" and not (i_voisin, j_voisin) in empty: # on peut passer par un garde encore present mais il faut le neutraliser
                     malus = 20
-                    malus += 100 * (self.seen_by_guards(i_voisin, j_voisin, empty) + self.seen_by_civil(i_voisin, j_voisin, empty))
+                    malus += 100 * (self.seen_by_guards(i_act, j_act, empty) + self.seen_by_civil(i_act, j_act, empty))
                 penalite = malus + penalites[i_act][j_act] + 1 + 5 * self.seen_by_guards(i_voisin, j_voisin, empty)
                 heapq.heappush(tas_cases_a_traiter, (penalite, i_voisin, j_voisin))
 

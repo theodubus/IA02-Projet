@@ -7,7 +7,6 @@ from typing import Tuple, List, Set
 from collections import namedtuple
 from time import sleep
 
-
 class Game:
     """
     Classe qui represente le jeu
@@ -1422,7 +1421,6 @@ class Game:
         print(score, "\n\n")
         
         penalites = -etat_final.penalties
-        print(etat_final)
 
         return penalites
         

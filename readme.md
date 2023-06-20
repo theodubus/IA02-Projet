@@ -15,7 +15,7 @@ python3 main.py
 
 Différentes options sont disponibles :
 ```
-usage: main.py [-h] [--sat SAT] [--temp TEMP] [--costume-combinaisons COSTUME_COMBINAISONS] [--display DISPLAY]
+usage: main.py [-h] [--sat SAT] [--temp TEMP] [--costume_combinaisons COSTUME_COMBINAISONS] [--display DISPLAY]
 
 Hitman
 
@@ -23,12 +23,12 @@ options:
   -h, --help            show this help message and exit
   --sat SAT             sat mode, can be "auto", "no_sat" or "sat", default is "auto"
   --temp TEMP           Wait a bit between each action, default is True. Is set to false if display is False
-  --costume-combinaisons COSTUME_COMBINAISONS
+  --costume_combinaisons COSTUME_COMBINAISONS
                         Use costume combinations, default is True
   --display DISPLAY     Display the game, default is True
 ```
 
-Voir plus bas pour l'explication de `costume-combinaisons` et `sat`. `temp` est un paramètre qui permet de marquer une petite pause entre chaque action lors des affichage du jeu, ce qui permet de mieux voir ce qu'il se passe. Ce paramètre est automatiquement mis à `False` si `display` est mis à `False`, c'est à dire si on n'affiche pas le jeu.
+Voir plus bas pour l'explication de `costume_combinaisons` et `sat`. `temp` est un paramètre qui permet de marquer une petite pause entre chaque action lors des affichage du jeu, ce qui permet de mieux voir ce qu'il se passe. Ce paramètre est automatiquement mis à `False` si `display` est mis à `False`, c'est à dire si on n'affiche pas le jeu.
 
 Pour l'affichage, un tableau est affiché après chaque action, on peut facilement voir les coordonnées de chaque case.
 Le contenu des cases est affiché de la manière suivante :
@@ -45,7 +45,7 @@ Le contenu des cases est affiché de la manière suivante :
 + `←`/`↑`/`→`/`↓` : Orientation du personnage (pour les gardes, invités et hitman)
 + Hitman peut être sur la même case qu'un objet ou invité, une case pourra donc être affiché comme `H↑ I→` ou `H↓ CS` par exemple.
 
-Les paramètres par défaut devraient offrir de bonnes performaneces, tout en étant capables de gérer des cartes assez grandes. Pour les cartes très très grandes, envisager `--sat no_sat` et `--costume-combinaisons False` pour des délais d'exécution plus courts.
+Les paramètres par défaut devraient offrir de bonnes performaneces, tout en étant capables de gérer des cartes assez grandes. Pour les cartes très très grandes, envisager `--sat no_sat` et `--costume_combinaisons False` pour des délais d'exécution plus courts.
 
 ## Modélisation code
 Aussi bien pour la phase 1 que la phase 2, nous modélisons nos connaissances sur le jeu de manière interne. Ainsi, nous avons créé la classe Case, et la classe Plateau (contenant un tableau d'objets "Case"), ce qui nous permet de facilement accéder à toutes les informations dont nous avons besoin. Un exemple parmi tant d'autres est la méthode `case_interdite()` de la classe Case, qui permet de savoir s'il est possible de se déplacer sur cette case ou non (si la case ne contient pas de mur ou de garde).
@@ -89,7 +89,7 @@ L'utilisation de SAT pour le risque pouvant être coûteuse et parfois non néce
 + `auto` : Utilisation intelligente de SAT, uniquement quand cela est le plus pertinent (exécution moyenne, ~ 30 secondes sur la carte du sujet)
 + `sat` : Utilisation de SAT dès que possible (exécution lente, > 2 minutes sur la carte du sujet)
 
-`sat` s'accomode assez mal aux grandes cartes, et lance des dizaines de fois SAT entre chaque action (pour calculer le risque de beaucoup de cases pour `penalite_minimale`, dont certaines cases pour lesquelles il n'est pas forcément le plus utile de calculer le risque). `auto` focalise la précision (l'utilisation de SAT) sur les cases autour de hitman, c'est la valeur de l'utilisation de sat par défaut. À noter qu'une utilisation plus forte de SAT ne s'accompagne pas forcément d'une meilleure performance, car SAT utilisé pour estimer le risque, mais même si on affine le risque, la valeur exacte du risque reste souvent approximative avant d'être sur la case en question. Une estimation plus précise du risque peut parfois nous amener à prendre d'autres décisions, alors que par chance, c'était la case qui nous semblait la plus risquée qui s'est avéré être la case ou il faut aller. Pour ces raisons, il arrive qu'un mode qui utilise moins SAT soit plus performant qu'un mode qui utilise plus SAT.
+`sat` s'accomode assez mal aux grandes cartes, et lance des dizaines de fois SAT entre chaque action (pour calculer le risque de beaucoup de cases pour `penalite_minimale`, dont certaines cases pour lesquelles il n'est pas forcément le plus utile de calculer le risque). `auto` focalise la précision (l'utilisation de SAT) sur les cases autour de hitman, c'est la valeur de l'utilisation de sat par défaut. À noter qu'une utilisation plus forte de SAT ne s'accompagne pas forcément d'une meilleure performance, car SAT utilisé pour estimer le risque, mais même si on affine le risque, la valeur exacte du risque reste souvent approximative avant d'être sur la case en question. Une estimation plus précise du risque peut parfois nous amener à prendre d'autres décisions, alors que par chance, c'était la case qui nous semblait la plus risquée qui s'est avéré être la case ou il faut aller. Pour ces raisons, il arrive qu'un mode qui utilise moins SAT soit plus performant qu'un mode qui utilise plus SAT. `auto` offre en général la meilleure performance, en plus d'être raisonnable au niveau du temps d'exécution.
 
 
 ## Phase 2
@@ -118,15 +118,15 @@ La recherche en elle-même se déroule en trois étapes :
 Par defaut, on cherche juste a atteindre ces objectifs dans l'ordre. Cela a cependant un
 defaut : le costume ne sera que pris si il est rentable pour la phase en cours, sauf qu'il
 est possible que prendre le costume soit penalisant dans l'immediat, mais rentable a long terme,
-dans les phases suivantes. Pour palier à ce problème, le paramètre `costume-combinaisons` essaye différents enchaînements :
+dans les phases suivantes. Pour palier à ce problème, le paramètre `costume_combinaisons` essaye différents enchaînements :
 + Ne pas forcer la prise du costume
 + Forcer la prise du costume avant la prise de l'arme
 + Forcer la prise du costume après la prise de l'arme et avant de tuer la cible
 + Forcer la prise du costume avoir tué la cible et avant de retourner en (0, 0)
 
 Ce paramètre fait donc rajouter une quatrième étape à la recherche, et compare pour déterminer le meilleur enchaînement.
-Mettre `costume-combinaisons` à false revient juste à n'essayer que le cas "Ne pas forcer la prise du costume". Ce cas
-sera souvent le plus optimal, mais pas toujours, utiliser `costume-combinaisons` est plus long, mais garanti un score soit égal, soit meilleur.
+Mettre `costume_combinaisons` à false revient juste à n'essayer que le cas "Ne pas forcer la prise du costume". Ce cas
+sera souvent le plus optimal, mais pas toujours, utiliser `costume_combinaisons` est plus long, mais garanti un score soit égal, soit meilleur.
 
 Le code de la phase 2 concernant les actions correspond à la modélisation STRIPS présente dans le fichier `strips.md`.
 

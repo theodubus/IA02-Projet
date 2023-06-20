@@ -821,6 +821,11 @@ class Game:
             
         # si toutes les cases ont ete explorees, on renvoie False
         return False
+    
+    ################ Methodes pour la phase 2 ################
+
+
+
 
 
 

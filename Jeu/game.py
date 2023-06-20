@@ -21,10 +21,11 @@ class Game:
         - status : dictionnaire contenant les informations sur l'etat actuel du jeu
         - nb_variables : nombre de variables dans la base de clauses
         - attente : liste de couples ou l'on sait pour chaque couple qu'au moins une des deux cases est un garde (voir plus bas)
-        - temporisation : booleen qui indique si on utilise la temporisation ou non (pour faire les affichages plus lentement)
+        - _temporisation : booleen qui indique si on utilise la temporisation ou non (pour faire les affichages plus lentement)
         - _dict_cases : dictionnaire qui permet de convertir un contenu de case en un tuple (element, direction)
         - _dict_directions : dictionnaire qui permet de convertir une direction en un chaine de caracteres
         - _sat_mode : chaine de caracteres qui indique le mode de calcul du risque (voir plus bas)
+        - _display : booleen qui indique si on affiche le jeu ou non
 
     
     Les methodes utiles sont :
@@ -66,10 +67,11 @@ class Game:
         self.status = None
         self.nb_variables = None
         self.attente = []
-        self.temporisation = True
+        self._temporisation = True
         self._sat_mode = "auto"
         self._history_etats = set()
         self._history_positions = set()
+        self._display = True
         self.n_invite_inconnu_restants = None
         self.n_garde_inconnu_restants = None
         self._dict_cases = {
@@ -93,6 +95,13 @@ class Game:
             HC.S : "bas",
             HC.W : "gauche"
         }
+
+    def afficher_plateau(self):
+        """
+        Affiche le plateau si self._display est True
+        """
+        if self._display:
+            print(self.plateau)
 
     ##########################################
     ##########################################
@@ -129,7 +138,7 @@ class Game:
         return self._dict_directions[self.status['orientation']]
             
 
-    def phase_1(self, temporisation: bool = True, sat_mode: str = "auto")-> Tuple[int, int]:
+    def phase_1(self, temporisation: bool = True, sat_mode: str = "auto", display: bool = True)-> Tuple[int, int]:
         """
         Implementation de la phase 1 du jeu. Le deroule est le suivant :
 
@@ -145,7 +154,7 @@ class Game:
             1. On envoie le contenu du plateau a hitman pour verifier si on a correctement rempli le plateau
             2. On affiche le resultat
         """
-
+        print("\nLa phase 1 commence !")
         # Initialisation
         self.status = self.hitman.start_phase1()
         lignes = self.status['m']
@@ -154,8 +163,9 @@ class Game:
         self.penalites = [[False for _ in range(lignes)] for _ in range(colonnes)]
         n_invites = self.status['civil_count']
         n_gardes = self.status['guard_count']
-        self.temporisation = temporisation
+        self._temporisation = temporisation
         self.sat_mode = sat_mode
+        self._display = display
 
         # recuperation des dimensions du plateau et des variables cnf
         m, n = self.plateau.infos_plateau()
@@ -178,13 +188,13 @@ class Game:
         ## cette condition produit n * m clauses, ce qui est raisonnable meme pour de grandes cartes
         self.clauses += unique(variables_invites, variables_gardes) # clauses pour ne pas avoir d'invite et de garde sur la meme case
 
-        print(self.plateau)
+        self.afficher_plateau()
         self.update_knowledge()
         i_act, j_act = self.pos_actuelle()
         self.clauses.append([-self.plateau.cell_to_var(i_act, j_act, "garde")]) # La case de depart est vide
         self.clauses.append([-self.plateau.cell_to_var(i_act, j_act, "invite")])
         self.plateau.set_case(i_act, j_act, ("vide", None))
-        print(self.plateau)
+        self.afficher_plateau()
 
         # Deroulement
         prochain_objectif = self.prochain_objectif()
@@ -202,6 +212,7 @@ class Game:
 
         _, score, _, _ = self.hitman.end_phase1()
 
+        print("Result phase 1 :")
         print(score)
 
         return calculated_score, -self.status['penalties'], 2*m*n
@@ -258,7 +269,7 @@ class Game:
                 if not self.plateau.get_case(voisin_min[0], voisin_min[1]).case_interdite() and not reflexe_survie:
                     self.status = self.hitman.move()
                     self.update_knowledge()
-                    print(self.plateau)
+                    self.afficher_plateau()
 
                 i_act, j_act = self.pos_actuelle()
 
@@ -524,7 +535,7 @@ class Game:
                             if self.penalites[i][j] == 0 or self.penalites[i][j] is False:
                                 self.status = self.hitman.move()
                                 self.update_knowledge()
-                                print(self.plateau)
+                                self.afficher_plateau()
                                 return True
 
         # on determine dans quel sens on se tourne
@@ -548,12 +559,12 @@ class Game:
         if index == (index_act + 1) % 4:
             self.status = self.hitman.turn_clockwise()
             self.update_knowledge()
-            print(self.plateau)
+            self.afficher_plateau()
         # sens inverse des aiguilles d'une montre
         elif index == (index_act + 3) % 4:
             self.status = self.hitman.turn_anti_clockwise()
             self.update_knowledge()
-            print(self.plateau)
+            self.afficher_plateau()
         # On tourne 2 fois, on regarde dans quel sens il sera le plus informatif de tourner
         elif index == (index_act + 2) % 4:
             if direction in {"haut", "bas"}:
@@ -564,23 +575,23 @@ class Game:
                     if direction == "haut":
                         self.status = self.hitman.turn_clockwise()
                         self.update_knowledge()
-                        print(self.plateau)
+                        self.afficher_plateau()
                         self.status = self.hitman.turn_clockwise()
                     else:
                         self.status = self.hitman.turn_anti_clockwise()
                         self.update_knowledge()
-                        print(self.plateau)
+                        self.afficher_plateau()
                         self.status = self.hitman.turn_anti_clockwise()
                 else: # nb_cases_inconnues_gauche <= nb_cases_inconnues_droite
                     if direction == "haut":
                         self.status = self.hitman.turn_anti_clockwise()
                         self.update_knowledge()
-                        print(self.plateau)
+                        self.afficher_plateau()
                         self.status = self.hitman.turn_anti_clockwise()                            
                     else:
                         self.status = self.hitman.turn_clockwise()
                         self.update_knowledge()
-                        print(self.plateau)
+                        self.afficher_plateau()
                         self.status = self.hitman.turn_clockwise()
             
             else: # direction in {"gauche", "droite"}
@@ -591,27 +602,27 @@ class Game:
                     if direction == "gauche":
                         self.status = self.hitman.turn_anti_clockwise()
                         self.update_knowledge()
-                        print(self.plateau)
+                        self.afficher_plateau()
                         self.status = self.hitman.turn_anti_clockwise()
                     else:
                         self.status = self.hitman.turn_clockwise()
                         self.update_knowledge()
-                        print(self.plateau)
+                        self.afficher_plateau()
                         self.status = self.hitman.turn_clockwise()
                 else: # nb_cases_inconnues_haut <= nb_cases_inconnues_bas
                     if direction == "gauche":
                         self.status = self.hitman.turn_clockwise()
                         self.update_knowledge()
-                        print(self.plateau)
+                        self.afficher_plateau()
                         self.status = self.hitman.turn_clockwise()
                     else:
                         self.status = self.hitman.turn_anti_clockwise()
                         self.update_knowledge()
-                        print(self.plateau)
+                        self.afficher_plateau()
                         self.status = self.hitman.turn_anti_clockwise()
             
             self.update_knowledge()
-            print(self.plateau)
+            self.afficher_plateau()
         
         if not self.direction_actuelle() == direction:
             raise ValueError("La direction n'est pas bonne")
@@ -663,7 +674,7 @@ class Game:
         """
 
         # permet de ralentir l'affichage pour mieux voir les etapes si cela va trop vite
-        if self.temporisation:
+        if self._temporisation:
             sleep(0.25)
 
         if self.status is None:
@@ -998,7 +1009,8 @@ class Game:
         elif action == "kill_target":
             contenu_sur_cette_case = self.plateau.get_case(etat.position[0], etat.position[1]).contenu[0]
             if etat.has_weapon and contenu_sur_cette_case == "cible":
-                new_etat = etat._replace(is_target_down=True)
+                new_tuple_neutralisee = etat.ensemble_cases_videes + ((etat.position[0], etat.position[1]),)
+                new_etat = etat._replace(is_target_down=True, ensemble_cases_videes=new_tuple_neutralisee)
                 penalties_actuel += 100 * seen_by_total
 
         elif action == "neutralize_guard" or action == "neutralize_civil":
@@ -1337,7 +1349,7 @@ class Game:
         return etat_actuel
     
 
-    def phase_2(self, temporisation: bool = True, costume_combinations: bool = False)-> int: 
+    def phase_2(self, temporisation: bool = True, costume_combinations: bool = False, display: bool = True)-> int: 
         """
         La phase 2 est decoupee en 3 objectifs:
             I.   Chercher la corde
@@ -1357,9 +1369,10 @@ class Game:
         On choisit la meilleure combinaison de ces 4 possibilites. Cette methode offrira un score soit egal
         soit superieur a la methode par defaut, mais elle est bien plus longue a executer.
         """
-        self.temporisation = temporisation
+        self._temporisation = temporisation
+        self._display = display
 
-        print("\nLa phase 2 a commence !")
+        print("\nLa phase 2 commence !")
 
         self.status = self.hitman.start_phase2()
         self.update_hitman()
@@ -1395,19 +1408,21 @@ class Game:
             if etat_final_bis.penalties < etat_final.penalties:
                 etat_final = etat_final_bis
 
-        print(self.plateau)
+        self.afficher_plateau()
         for action in etat_final.historique_actions:
             self.do_fn_for_real(action)
             self.update_hitman()
-            print(self.plateau)
-            if self.temporisation:
+            self.afficher_plateau()
+            if self._temporisation:
                 sleep(0.25)
 
         _, score, _ = self.hitman.end_phase2()
 
+        print("Result phase 2 :")
         print(score, "\n\n")
         
         penalites = -etat_final.penalties
+        print(etat_final)
 
         return penalites
         
